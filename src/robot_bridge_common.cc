@@ -84,21 +84,6 @@ Eigen::Vector6d RobotState::get_V_WP(const RigidBodyFrame<double> &P) const {
   return iiwa_->CalcFrameSpatialVelocityInWorldFrame(cache_, P);
 }
 
-void FillDebugMessage(const RobotState &state,
-                      drake::lcmt_jjz_controller *msg) {
-  msg->utime = state.get_time() * 1e6;
-  msg->dt = state.get_dt();
-
-  eigenVectorToCArray(state.get_q(), msg->q);
-  eigenVectorToCArray(state.get_v(), msg->v);
-
-  Eigen::Matrix<double, 7, 1> tmp_pose = pose_to_vec(state.get_X_WT());
-  eigenVectorToCArray(tmp_pose, msg->X_WT);
-  eigenVectorToCArray(state.get_V_WT(), msg->V_WT);
-
-  eigenVectorToCArray(state.get_ext_wrench(), msg->ext_wrench);
-}
-
 Eigen::Matrix<double, 7, 1> pose_to_vec(const Eigen::Isometry3d &pose) {
   Eigen::Matrix<double, 7, 1> ret;
   ret.head<3>() = pose.translation();

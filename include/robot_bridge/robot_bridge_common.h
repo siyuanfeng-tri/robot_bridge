@@ -2,7 +2,6 @@
 
 #include "drake/common/eigen_types.h"
 #include "drake/lcmt_iiwa_status.hpp"
-#include "drake/lcmt_jjz_controller.hpp"
 #include "drake/lcmt_schunk_wsg_status.hpp"
 #include "drake/manipulation/util/trajectory_utils.h"
 #include "drake/multibody/rigid_body_tree.h"
@@ -93,8 +92,6 @@ private:
   double velocity_{0};
   double force_{0};
 };
-
-void FillDebugMessage(const RobotState &state, drake::lcmt_jjz_controller *msg);
 
 Eigen::Matrix<double, 7, 1> pose_to_vec(const Eigen::Isometry3d &pose);
 

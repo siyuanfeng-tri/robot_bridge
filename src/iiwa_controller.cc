@@ -8,13 +8,12 @@
 
 #include "drake/lcmt_iiwa_command.hpp"
 #include "drake/lcmt_iiwa_status.hpp"
-#include "drake/lcmt_jjz_controller.hpp"
 #include "drake/lcmt_schunk_wsg_command.hpp"
 #include "drake/lcmt_viewer_draw.hpp"
 
 #include "drake/util/drakeUtil.h"
 #include "drake/util/lcmUtil.h"
-#include "util/util.h"
+#include "robot_bridge/util.h"
 
 namespace robot_bridge {
 
@@ -417,11 +416,10 @@ void IiwaController::ControlLoop() {
       new MoveJoint("hold_q", &robot, state.get_q(), state.get_q(), 0.1));
   SwapPlan(std::move(plan));
   {
-    drake::lcmt_jjz_controller ctrl_debug{};
     std::lock_guard<std::mutex> guard(motion_lock_);
     primitive_->Initialize(state);
-    primitive_->Update(state, &ctrl_debug);
-    primitive_->Control(state, &primitive_output_, &ctrl_debug);
+    primitive_->Update(state);
+    primitive_->Control(state, &primitive_output_);
   }
   ready_flag_ = true;
 
@@ -456,17 +454,14 @@ void IiwaController::ControlLoop() {
       }
     } while (lcm_err <= 0);
 
-    drake::lcmt_jjz_controller ctrl_debug{};
-    FillDebugMessage(state, &ctrl_debug);
-
     // Locked by motion_lock_
     {
       std::lock_guard<std::mutex> guard(motion_lock_);
       if (!primitive_->is_init()) {
         primitive_->Initialize(state);
       }
-      primitive_->Update(state, &ctrl_debug);
-      primitive_->Control(state, &primitive_output_, &ctrl_debug);
+      primitive_->Update(state);
+      primitive_->Control(state, &primitive_output_);
 
       q_cmd = primitive_output_.q_cmd;
       trq_cmd = primitive_output_.trq_cmd;
@@ -476,7 +471,7 @@ void IiwaController::ControlLoop() {
     }
 
     // Generate frame visualization stuff.
-    frame_msg.timestamp = ctrl_debug.utime;
+    frame_msg.timestamp = static_cast<int64_t>(state.get_time() * 1e6);
     FillFrameMessage(state.get_X_WP(frame_C), 0, &frame_msg);
     FillFrameMessage(state.get_X_WT(), 1, &frame_msg);
     FillFrameMessage(X_WT_cmd, 2, &frame_msg);
@@ -490,9 +485,6 @@ void IiwaController::ControlLoop() {
       iiwa_command.joint_torque[i] = trq_cmd[i];
     }
     lcm_.publish(kLcmIiwaCommandChannel, &iiwa_command);
-
-    // send debug msg.
-    lcm_.publish(kLcmIiwaControllerDebug, &ctrl_debug);
   }
 }
 

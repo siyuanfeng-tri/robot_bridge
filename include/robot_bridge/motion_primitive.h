@@ -5,7 +5,6 @@
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/rigid_body_tree.h"
 
-#include "drake/lcmt_jjz_controller.hpp"
 #include "drake/manipulation/util/trajectory_utils.h"
 
 #include "jacobian_ik.h"
@@ -57,8 +56,7 @@ public:
               << "\n";
   }
 
-  void Control(const RobotState &state, PrimitiveOutput *output,
-               drake::lcmt_jjz_controller *msg) const {
+  void Control(const RobotState &state, PrimitiveOutput *output) const {
     // Set default values.
     const int dim = robot_.get_num_positions();
     output->q_cmd.resize(dim);
@@ -68,7 +66,7 @@ public:
 
     output->X_WT_cmd.setIdentity();
 
-    DoControl(state, output, msg);
+    DoControl(state, output);
     output->status = ComputeStatus(state);
   }
 
@@ -76,7 +74,7 @@ public:
 
   void set_name(const std::string &name) { name_ = name; }
 
-  virtual void Update(const RobotState &, drake::lcmt_jjz_controller *) {}
+  virtual void Update(const RobotState &) {}
   virtual void UpdateToolGoal(const RobotState &, const Eigen::Isometry3d &) {}
   virtual Eigen::Isometry3d GetToolGoal() const {
     return Eigen::Isometry3d::Identity();
@@ -90,8 +88,7 @@ public:
 protected:
   virtual MotionStatus ComputeStatus(const RobotState &state) const = 0;
   virtual void DoInitialize(const RobotState &) {}
-  virtual void DoControl(const RobotState &, PrimitiveOutput *,
-                         drake::lcmt_jjz_controller *) const {}
+  virtual void DoControl(const RobotState &, PrimitiveOutput *) const {}
   Type get_type() const { return type_; }
 
 private:
@@ -122,8 +119,8 @@ public:
   MoveJoint(const std::string &name, const RigidBodyTree<double> *robot,
             const Eigen::VectorXd &q0, const Eigen::VectorXd &q1);
 
-  void DoControl(const RobotState &state, PrimitiveOutput *output,
-                 drake::lcmt_jjz_controller *msg) const override;
+  void DoControl(const RobotState &state, PrimitiveOutput *output)
+    const override;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -136,8 +133,7 @@ private:
 
 class MoveTool : public MotionPrimitive {
 public:
-  void Update(const RobotState &state,
-              drake::lcmt_jjz_controller *msg) override;
+  void Update(const RobotState &state) override;
 
   virtual Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const = 0;
@@ -162,8 +158,7 @@ protected:
            MotionPrimitive::Type type, double fz_thresh_ = 10000);
 
   void DoInitialize(const RobotState &state) override;
-  void DoControl(const RobotState &state, PrimitiveOutput *output,
-                 drake::lcmt_jjz_controller *msg) const override;
+  void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
 
   const JacobianIk &get_planner() const {
     return jaco_planner_;
@@ -205,8 +200,7 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-  void DoControl(const RobotState &state, PrimitiveOutput *output,
-                 drake::lcmt_jjz_controller *msg) const override;
+  void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
   Eigen::Isometry3d X_WT0_;
@@ -222,8 +216,7 @@ public:
                             const RigidBodyTree<double> *robot,
                             const RigidBodyFrame<double> *frame_T);
 
-  void Update(const RobotState &state,
-              drake::lcmt_jjz_controller *msg) override;
+  void Update(const RobotState &state) override;
 
   const Eigen::Vector6d &get_desired_ext_wrench() const {
     return ext_wrench_d_;
@@ -234,8 +227,7 @@ public:
 
 private:
   void DoInitialize(const RobotState &state) override;
-  void DoControl(const RobotState &state, PrimitiveOutput *output,
-                 drake::lcmt_jjz_controller *msg) const override;
+  void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
   Eigen::VectorXd q0_;
@@ -258,8 +250,7 @@ public:
     X_WT_traj_ = traj;
   }
 
-  void Update(const RobotState &state,
-              drake::lcmt_jjz_controller *msg) override;
+  void Update(const RobotState &state) override;
 
   Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const override;
@@ -279,8 +270,7 @@ private:
     return X_WT_traj_.get_pose(end_time);
   }
 
-  void DoControl(const RobotState &state, PrimitiveOutput *output,
-                 drake::lcmt_jjz_controller *msg) const override;
+  void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
   drake::manipulation::PiecewiseCartesianTrajectory<double> X_WT_traj_;

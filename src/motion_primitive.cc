@@ -66,14 +66,9 @@ MoveJoint::MoveJoint(const std::string &name,
   trajd_ = traj_.derivative();
 }
 
-void MoveJoint::DoControl(const RobotState &state, PrimitiveOutput *output,
-                          drake::lcmt_jjz_controller *msg) const {
+void MoveJoint::DoControl(const RobotState &state, PrimitiveOutput *output) const {
   const double interp_time = get_in_state_time(state);
   output->q_cmd = traj_.value(interp_time);
-  eigenVectorToCArray(output->q_cmd, msg->q_ik);
-
-  Eigen::VectorXd v = trajd_.value(interp_time);
-  eigenVectorToCArray(v, msg->v_ik);
 }
 
 MotionStatus MoveJoint::ComputeStatus(const RobotState &state) const {
@@ -111,8 +106,7 @@ void MoveTool::DoInitialize(const RobotState &state) {
   last_time_ = state.get_time();
 }
 
-void MoveTool::Update(const RobotState &state,
-                      drake::lcmt_jjz_controller *msg) {
+void MoveTool::Update(const RobotState &state) {
   const RigidBodyTree<double>& robot = get_robot();
   Eigen::Isometry3d X_WT_d = ComputeDesiredToolInWorld(state);
   Eigen::Isometry3d X_WT =
@@ -130,17 +124,6 @@ void MoveTool::Update(const RobotState &state,
   Eigen::VectorXd v = jaco_planner_.ComputeDofVelocity(
       cache_, collisions_, frame_T_, V_WT_d, q_norm_, dt, &is_stuck_, gain_T_);
 
-  // Make debug
-  Eigen::Matrix<double, 7, 1> tmp_pose = pose_to_vec(X_WT_d);
-  eigenVectorToCArray(tmp_pose, msg->X_WT_d);
-
-  tmp_pose = pose_to_vec(X_WT);
-  eigenVectorToCArray(tmp_pose, msg->X_WT_ik);
-
-  eigenVectorToCArray(cache_.getQ(), msg->q_ik);
-  eigenVectorToCArray(v, msg->v_ik);
-  eigenVectorToCArray(V_WT_d, msg->V_WT_d);
-
   // Integrate ik's fake state.
   cache_.initialize(cache_.getQ() + v * dt, v);
   robot.doKinematics(cache_);
@@ -150,11 +133,9 @@ void MoveTool::Update(const RobotState &state,
   }
 }
 
-void MoveTool::DoControl(const RobotState &, PrimitiveOutput *output,
-                         drake::lcmt_jjz_controller *msg) const {
+void MoveTool::DoControl(const RobotState &, PrimitiveOutput *output) const {
   output->q_cmd = cache_.getQ();
   output->X_WT_cmd = get_robot().CalcFramePoseInWorldFrame(cache_, frame_T_);
-  eigenVectorToCArray(output->q_cmd, msg->q_ik);
 }
 
 ///////////////////////////////////////////////////////////
@@ -185,9 +166,8 @@ MoveToolStraightUntilTouch::ComputeStatus(const RobotState &state) const {
 }
 
 void MoveToolStraightUntilTouch::DoControl(
-    const RobotState &state, PrimitiveOutput *output,
-    drake::lcmt_jjz_controller *msg) const {
-  MoveTool::DoControl(state, output, msg);
+    const RobotState &state, PrimitiveOutput *output) const {
+  MoveTool::DoControl(state, output);
 
   if (state.get_ext_wrench().tail<3>().norm() > f_ext_thresh_)
     output->status = MotionStatus::DONE;
@@ -200,8 +180,7 @@ HoldPositionAndApplyForce::HoldPositionAndApplyForce(
     : MotionPrimitive(name, robot, HOLD_J_AND_APPLY_FORCE), frame_T_(*frame_T),
       cache_(robot->CreateKinematicsCache()) {}
 
-void HoldPositionAndApplyForce::Update(const RobotState &state,
-                                       drake::lcmt_jjz_controller *) {
+void HoldPositionAndApplyForce::Update(const RobotState &state) {
   cache_.initialize(state.get_q(), state.get_v());
   get_robot().doKinematics(cache_);
 }
@@ -215,8 +194,7 @@ void HoldPositionAndApplyForce::DoInitialize(const RobotState &state) {
 }
 
 void HoldPositionAndApplyForce::DoControl(
-    const RobotState &, PrimitiveOutput *output,
-    drake::lcmt_jjz_controller *msg) const {
+    const RobotState &, PrimitiveOutput *output) const {
   const RigidBodyTree<double> &robot = get_robot();
   output->q_cmd = q0_;
   output->X_WT_cmd = X_WT0_;
@@ -227,9 +205,6 @@ void HoldPositionAndApplyForce::DoControl(
   Eigen::MatrixXd J =
       robot.CalcFrameSpatialVelocityJacobianInWorldFrame(cache_, frame_T_);
   output->trq_cmd = -J.transpose() * ext_wrench_d_;
-
-  // Debug
-  eigenVectorToCArray(output->q_cmd, msg->q_ik);
 }
 
 MotionStatus
@@ -238,9 +213,8 @@ HoldPositionAndApplyForce::ComputeStatus(const RobotState &state) const {
 }
 
 ///////////////////////////////////////////////////////////
-void MoveToolFollowTraj::Update(const RobotState &state,
-                                drake::lcmt_jjz_controller *msg) {
-  MoveTool::Update(state, msg);
+void MoveToolFollowTraj::Update(const RobotState &state) {
+  MoveTool::Update(state);
 
   if (state.get_ext_wrench()[5] > Fz_thresh_) {
     const double end_time = get_in_state_time(state);
@@ -299,14 +273,13 @@ void MoveToolFollowTraj::UpdateToolGoal(const RobotState &state,
 }
 
 void MoveToolFollowTraj::DoControl(const RobotState &state,
-                                   PrimitiveOutput *output,
-                                   drake::lcmt_jjz_controller *msg) const {
+                                   PrimitiveOutput *output) const {
   // Gets the current actual jacobian.
   Eigen::MatrixXd J = get_robot().CalcFrameSpatialVelocityJacobianInWorldFrame(
       state.get_cache(), get_tool_frame());
 
   // The desired q comes from MoveTool's
-  MoveTool::DoControl(state, output, msg);
+  MoveTool::DoControl(state, output);
 
   // Adds the external force part.
   Eigen::Vector6d wrench = Eigen::Vector6d::Zero();
@@ -333,11 +306,6 @@ void MoveToolFollowTraj::DoControl(const RobotState &state,
     wrench[4] = mu_ * fz_;
   }
   output->trq_cmd = -J.transpose() * wrench;
-
-  // HACK
-  for (int i = 0; i < 6; i++) {
-    msg->X_WT_int[i] = wrench[i];
-  }
 }
 
 MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
