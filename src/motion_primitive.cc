@@ -321,7 +321,7 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
   diff.tail<3>() = X_WT.linear().transpose() * V_WT_d.tail<3>();
   diff = (diff.array() * get_tool_gain().array()).matrix();
 
-  const Eigen::VectorXd& ik_v = get_cache().getV();
+  // const Eigen::VectorXd& ik_v = get_cache().getV();
 
   /*
   std::cout << "stuck: " << is_stuck() << ", " <<

@@ -15,4 +15,10 @@ add_library(robot_bridge
   src/motion_primitive.cc
   src/iiwa_controller.cc
   src/robot_bridge.cc)
-target_link_libraries(robot_bridge drake::drake libgurobi70.so)
+target_link_libraries(robot_bridge drake::drake libgurobi75.so)
+
+install(TARGETS robot_bridge
+ DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+
+install(DIRECTORY include/robot_bridge
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
