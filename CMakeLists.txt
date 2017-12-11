@@ -5,8 +5,10 @@ find_package(drake CONFIG REQUIRED)
 
 include_directories(
   ${PROJECT_SOURCE_DIR}/include)
+link_directories(
+  $ENV{GUROBI_PATH}/lib)
 
-add_library(robot_bridge
+add_library(robot_bridge SHARED
   src/capsule.cc
   src/jacobian_ik.cc
   src/robot_bridge_common.cc
