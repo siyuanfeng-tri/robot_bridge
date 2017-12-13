@@ -5,9 +5,6 @@
 
 #include "drake/util/drakeUtil.h"
 
-#include "drake/solvers/gurobi_solver.h"
-#include "drake/solvers/mathematical_program.h"
-
 namespace robot_bridge {
 
 const std::string kEEName("iiwa_link_7");

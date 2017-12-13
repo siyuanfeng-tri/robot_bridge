@@ -10,7 +10,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/common/trajectories/piecewise_polynomial_trajectory.h"
 #include "drake/multibody/rigid_body_ik.h"
-#include "drake/solvers/gurobi_solver.h"
+#include "drake/solvers/scs_solver.h"
 
 namespace Eigen {
 typedef Matrix<double, 6, 1> Vector6d;
@@ -87,7 +87,7 @@ private:
   Eigen::MatrixXd identity_;
   Eigen::VectorXd zero_;
 
-  mutable drake::solvers::GurobiSolver solver_;
+  mutable drake::solvers::ScsSolver solver_;
 };
 
 } // namespace robot_bridge

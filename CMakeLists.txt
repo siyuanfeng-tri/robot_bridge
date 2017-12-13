@@ -20,8 +20,7 @@ add_library(robot_bridge SHARED
   src/motion_primitive.cc
   src/iiwa_controller.cc
   src/robot_bridge.cc)
-#target_link_libraries(robot_bridge drake::drake gurobi75)
-target_link_libraries(robot_bridge drake::drake gurobi75)
+target_link_libraries(robot_bridge drake::drake)
 
 add_executable(test_robot_bridge src/test_robot_bridge.cc)
 target_link_libraries(test_robot_bridge robot_bridge)
