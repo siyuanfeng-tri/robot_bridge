@@ -11,6 +11,8 @@ include_directories(
 #link_directories(
 #  $ENV{GUROBI_PATH}/lib)
 
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 add_library(robot_bridge SHARED
   src/capsule.cc
   src/jacobian_ik.cc
@@ -19,7 +21,7 @@ add_library(robot_bridge SHARED
   src/iiwa_controller.cc
   src/robot_bridge.cc)
 #target_link_libraries(robot_bridge drake::drake gurobi75)
-target_link_libraries(robot_bridge drake::drake)
+target_link_libraries(robot_bridge drake::drake gurobi75)
 
 add_executable(test_robot_bridge src/test_robot_bridge.cc)
 target_link_libraries(test_robot_bridge robot_bridge)
