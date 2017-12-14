@@ -155,7 +155,8 @@ public:
 protected:
   MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
            const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-           MotionPrimitive::Type type, double fz_thresh_ = 10000);
+           MotionPrimitive::Type type,
+           const Eigen::Vector6d& F_thresh);
 
   void DoInitialize(const RobotState &state) override;
   void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
@@ -167,10 +168,11 @@ protected:
   const RigidBodyFrame<double> &get_frame_T() const { return frame_T_; }
   bool is_stuck() const { return is_stuck_; }
 
-  // hack
-  double Fz_thresh_;
+  const Eigen::Vector6d& get_F_thresh() const { return F_thresh_; }
+  bool is_F_over_thresh(const Eigen::Vector6d& F) const;
 
 private:
+  const Eigen::Vector6d F_thresh_;
   const RigidBodyFrame<double> frame_T_;
   KinematicsCache<double> cache_;
   bool is_stuck_{false};
@@ -189,25 +191,20 @@ public:
                              const RigidBodyTree<double> *robot,
                              const RigidBodyFrame<double> *frame_T,
                              const Eigen::VectorXd &q0,
-                             const Eigen::Vector3d &dir, double vel);
+                             const Eigen::Vector3d &dir, double vel,
+                             const Eigen::Vector6d& F_thresh);
 
   Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const override;
 
-  double get_f_ext_thresh() const { return f_ext_thresh_; }
-  void set_f_ext_thresh(double thresh) { f_ext_thresh_ = thresh; }
-
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
-  void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
   Eigen::Isometry3d X_WT0_;
   Eigen::Vector3d dir_;
   double vel_;
-
-  double f_ext_thresh_{10};
 };
 
 class HoldPositionAndApplyForce : public MotionPrimitive {
@@ -243,7 +240,7 @@ public:
       const std::string &name, const RigidBodyTree<double> *robot,
       const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
       const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-      double Fz_thresh);
+      const Eigen::Vector6d& F_thresh);
 
   void set_X_WT_traj(
       const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj) {
@@ -255,9 +252,7 @@ public:
   Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const override;
 
-  void set_mu(double mu) { mu_ = mu; }
-  void set_yaw_mu(double mu) { yaw_mu_ = mu; }
-  void set_fz(double fz) { fz_ = fz; }
+  void set_applied_F(const Eigen::Vector6d& F) { F_ = F; }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -275,10 +270,7 @@ private:
 
   drake::manipulation::PiecewiseCartesianTrajectory<double> X_WT_traj_;
 
-  double vel_thres_{1e-3};
-  double mu_{0};
-  double yaw_mu_{0};
-  double fz_{10};
+  Eigen::Vector6d F_{Eigen::Vector6d::Zero()};
 };
 
 } // namespace robot_bridge

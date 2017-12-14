@@ -40,14 +40,26 @@ public:
   MotionStatus MoveJointDegrees(const Eigen::VectorXd &q, bool blocking);
 
   // "MoveL". Linear movement in cartesian space.
-  virtual MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                                double duration, double Fz_thresh,
-                                bool blocking) = 0;
-  virtual MotionStatus MoveToolAndApplyFz(const Eigen::Isometry3d &tgt_pose_ee,
-                                          double duration, double Fz_thresh,
-                                          double Fz, double mu,
-                                          bool blocking) = 0;
+  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
+                        double duration,
+                        const Eigen::Vector6d& F_thresh,
+                        bool blocking) {
+    return MoveToolAndApplyWrench(
+        tgt_pose_ee, duration, F_thresh, Eigen::Vector6d::Zero(), blocking);
+  }
+
+  virtual MotionStatus MoveToolAndApplyWrench(
+      const Eigen::Isometry3d &tgt_pose_ee,
+      double duration,
+      const Eigen::Vector6d& F_thresh,
+      const Eigen::Vector6d& F,
+      bool blocking) = 0;
   virtual void UpdateToolGoal(const Eigen::Isometry3d &world_update) = 0;
+
+  virtual MotionStatus MoveStraightUntilTouch(
+      const Eigen::Vector3d &dir_W, double vel,
+      const Eigen::Vector3d& F_thresh,
+      bool blocking) = 0;
 
   // Controller status querry.
   virtual Eigen::Isometry3d GetDesiredToolPose() const = 0;

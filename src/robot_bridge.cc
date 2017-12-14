@@ -94,6 +94,8 @@ MotionStatus RobotBridge::WaitForRobotMotionCompletion() const {
     case MotionStatus::DONE:
       std::cout << "Motion Ended with DONE\n";
       break;
+    default:
+      break;
   }
   return ret;
 }

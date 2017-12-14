@@ -83,8 +83,8 @@ MotionStatus MoveJoint::ComputeStatus(const RobotState &state) const {
 MoveTool::MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
                    const RigidBodyFrame<double> *frame_T,
                    const Eigen::VectorXd &q0, MotionPrimitive::Type type,
-                   double Fz_thresh)
-    : MotionPrimitive(name, robot, type), Fz_thresh_(Fz_thresh),
+                   const Eigen::Vector6d& F_thresh)
+    : MotionPrimitive(name, robot, type), F_thresh_(F_thresh),
       frame_T_(*frame_T), cache_(robot->CreateKinematicsCache()),
       jaco_planner_(robot), q_norm_(robot->getZeroConfiguration()) {
   cache_.initialize(q0, Eigen::VectorXd::Zero(robot->get_num_velocities()));
@@ -92,6 +92,15 @@ MoveTool::MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
 
   jaco_planner_.SetJointSpeedLimit(get_velocity_upper_limit(),
                                    get_velocity_lower_limit());
+}
+
+bool MoveTool::is_F_over_thresh(const Eigen::Vector6d& F) const {
+  for (int i = 0; i < 6; i++) {
+    if (std::fabs(F[i]) > F_thresh_[i]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void MoveTool::AddCollisionPair(const Capsule& c0, const Capsule& c1) {
@@ -148,9 +157,10 @@ void MoveTool::DoControl(const RobotState &, PrimitiveOutput *output) const {
 MoveToolStraightUntilTouch::MoveToolStraightUntilTouch(
     const std::string &name, const RigidBodyTree<double> *robot,
     const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-    const Eigen::Vector3d &dir, double vel)
+    const Eigen::Vector3d &dir, double vel, const Eigen::Vector6d& F_thresh)
     : MoveTool(name, robot, frame_T, q0,
-               MotionPrimitive::MOVE_TOOL_STRAIGHT_UNTIL_TOUCH),
+               MotionPrimitive::MOVE_TOOL_STRAIGHT_UNTIL_TOUCH,
+               F_thresh),
       dir_{dir}, vel_{vel} {
   dir_.normalize();
   X_WT0_ = get_X_WT_ik();
@@ -165,18 +175,10 @@ Eigen::Isometry3d MoveToolStraightUntilTouch::ComputeDesiredToolInWorld(
 
 MotionStatus
 MoveToolStraightUntilTouch::ComputeStatus(const RobotState &state) const {
-  if (state.get_ext_wrench().tail<3>().norm() > f_ext_thresh_)
+  if (is_F_over_thresh(state.get_ext_wrench()))
     return MotionStatus::DONE;
   else
     return MotionStatus::EXECUTING;
-}
-
-void MoveToolStraightUntilTouch::DoControl(
-    const RobotState &state, PrimitiveOutput *output) const {
-  MoveTool::DoControl(state, output);
-
-  if (state.get_ext_wrench().tail<3>().norm() > f_ext_thresh_)
-    output->status = MotionStatus::DONE;
 }
 
 ///////////////////////////////////////////////////////////
@@ -222,7 +224,7 @@ HoldPositionAndApplyForce::ComputeStatus(const RobotState &state) const {
 void MoveToolFollowTraj::Update(const RobotState &state) {
   MoveTool::Update(state);
 
-  if (state.get_ext_wrench()[5] > Fz_thresh_) {
+  if (is_F_over_thresh(state.get_ext_wrench())) {
     const double end_time = get_in_state_time(state);
     const double start_time =
         X_WT_traj_.get_position_trajectory().get_start_time();
@@ -241,8 +243,8 @@ MoveToolFollowTraj::MoveToolFollowTraj(
     const std::string &name, const RigidBodyTree<double> *robot,
     const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
     const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-    double Fz_thresh)
-    : MoveTool(name, robot, frame_T, q0, MOVE_TOOL, Fz_thresh),
+    const Eigen::Vector6d& F_thresh)
+    : MoveTool(name, robot, frame_T, q0, MOVE_TOOL, F_thresh),
       X_WT_traj_(traj) {}
 
 Eigen::Isometry3d
@@ -287,31 +289,8 @@ void MoveToolFollowTraj::DoControl(const RobotState &state,
   // The desired q comes from MoveTool's
   MoveTool::DoControl(state, output);
 
-  // Adds the external force part.
-  Eigen::Vector6d wrench = Eigen::Vector6d::Zero();
-  wrench[5] = fz_;
-
-  // Compensate for friction.
-  const double interp_t = get_in_state_time(state);
-  Eigen::Vector6d V_WT = X_WT_traj_.get_velocity(interp_t);
-  if (V_WT[2] > 0) {
-    wrench[2] = -yaw_mu_ * fz_;
-  } else if (V_WT[2] < 0) {
-    wrench[2] = yaw_mu_ * fz_;
-  }
-
-  if (V_WT[3] > vel_thres_) {
-    wrench[3] = -mu_ * fz_;
-  } else if (V_WT[3] < -vel_thres_) {
-    wrench[3] = mu_ * fz_;
-  }
-
-  if (V_WT[4] > vel_thres_) {
-    wrench[4] = -mu_ * fz_;
-  } else if (V_WT[4] < -vel_thres_) {
-    wrench[4] = mu_ * fz_;
-  }
-  output->trq_cmd = -J.transpose() * wrench;
+  // Apply static external force.
+  output->trq_cmd = -J.transpose() * F_;
 }
 
 MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
@@ -329,7 +308,7 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
 
   // const Eigen::VectorXd& ik_v = get_cache().getV();
 
-  if (state.get_ext_wrench()[5] > Fz_thresh_) {
+  if (is_F_over_thresh(state.get_ext_wrench())) {
     return MotionStatus::ERR_FORCE_SAFETY;
   }
 

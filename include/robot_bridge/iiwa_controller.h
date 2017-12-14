@@ -32,11 +32,16 @@ public:
                                 bool blocking) override;
   MotionStatus MoveJointRadians(const Eigen::VectorXd &q,
                                 bool blocking) override;
-  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee, double duration,
-                        double Fz_thresh, bool blocking) override;
-  MotionStatus MoveToolAndApplyFz(const Eigen::Isometry3d &tgt_pose_ee,
-                                  double duration, double Fz_thresh, double Fz,
-                                  double mu, bool blocking) override;
+
+  MotionStatus MoveToolAndApplyWrench(const Eigen::Isometry3d &tgt_pose_ee,
+                                      double duration,
+                                      const Eigen::Vector6d& F_thresh,
+                                      const Eigen::Vector6d& F,
+                                      bool blocking) override;
+  MotionStatus MoveStraightUntilTouch(
+      const Eigen::Vector3d &dir_W, double vel,
+      const Eigen::Vector3d& F_thresh,
+      bool blocking) override;
   MotionStatus GetRobotMotionStatus() const override;
   Eigen::Isometry3d GetDesiredToolPose() const;
   Eigen::VectorXd GetDesiredJointPositionRadians() const;
@@ -66,19 +71,16 @@ private:
 
   void MoveJ(const Eigen::VectorXd &q_des);
 
-  void MoveStraightUntilTouch(const Eigen::Vector3d &dir_W, double vel,
-                              double force_thresh);
-
   // Fz is in world frame.
   // If you don't want to deal with any of the force crap, just set
-  // them all the zero. If you don't want to compensate for friction, set mus to
-  // zero.
+  // them all the zero.
   //
   // Note: the timing in traj should be relative, i.e time range = [0, 2], not
   // absolute clock.
   void MoveToolFollowTraj(
       const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-      double Fz_thresh, double Fz, double mu, double yaw_mu);
+      const Eigen::Vector6d& F_thresh,
+      const Eigen::Vector6d& F);
 
   // position is in [m], force is in N. should be positive absolute value.
   void SetGripperPositionAndForce(double position, double force);

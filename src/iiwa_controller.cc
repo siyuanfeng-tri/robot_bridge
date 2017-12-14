@@ -108,9 +108,13 @@ MotionStatus IiwaController::MoveJointRadians(const Eigen::VectorXd &q,
   return GetRobotMotionStatus();
 }
 
-MotionStatus IiwaController::MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                                      double duration, double Fz_thresh,
-                                      bool blocking) {
+MotionStatus
+IiwaController::MoveToolAndApplyWrench(
+    const Eigen::Isometry3d &tgt_pose_ee,
+    double duration,
+    const Eigen::Vector6d& F_thresh,
+    const Eigen::Vector6d& F,
+    bool blocking) {
   RobotState robot_state(&get_robot(), &get_tool_frame());
   GetRobotState(&robot_state);
 
@@ -121,27 +125,27 @@ MotionStatus IiwaController::MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
               {0.2, duration}, {cur_pose_ee, tgt_pose_ee},
               Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
 
-  MoveToolFollowTraj(traj, Fz_thresh, 0, 0, 0);
+  MoveToolFollowTraj(traj, F_thresh, F);
   if (blocking)
     return WaitForRobotMotionCompletion();
   return GetRobotMotionStatus();
 }
 
-MotionStatus
-IiwaController::MoveToolAndApplyFz(const Eigen::Isometry3d &tgt_pose_ee,
-                                   double duration, double Fz_thresh, double Fz,
-                                   double mu, bool blocking) {
-  RobotState robot_state(&get_robot(), &get_tool_frame());
-  GetRobotState(&robot_state);
+MotionStatus IiwaController::MoveStraightUntilTouch(
+    const Eigen::Vector3d &dir_W,
+    double vel, const Eigen::Vector3d& force_thresh,
+    bool blocking) {
+  PrimitiveOutput cur_output;
+  GetPrimitiveOutput(&cur_output);
 
-  Eigen::Isometry3d cur_pose_ee = robot_state.get_X_WT();
-  drake::manipulation::PiecewiseCartesianTrajectory<double> traj =
-      drake::manipulation::PiecewiseCartesianTrajectory<double>::
-          MakeCubicLinearWithEndLinearVelocity(
-              {0.2, duration}, {cur_pose_ee, tgt_pose_ee},
-              Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+  Eigen::Vector6d thresh = Eigen::Vector6d::Constant(1000);
+  thresh.tail<3>() = force_thresh;
 
-  MoveToolFollowTraj(traj, Fz_thresh, Fz, mu, 0);
+  auto new_plan = new MoveToolStraightUntilTouch(
+      "MoveStraightUntilTouch", &get_robot(), &get_tool_frame(),
+      cur_output.q_cmd, dir_W, vel, thresh);
+  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
+
   if (blocking)
     return WaitForRobotMotionCompletion();
   return GetRobotMotionStatus();
@@ -282,30 +286,17 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des) {
   SwapPlan(std::move(new_plan));
 }
 
-void IiwaController::MoveStraightUntilTouch(const Eigen::Vector3d &dir_W,
-                                            double vel, double force_thresh) {
-  PrimitiveOutput cur_output;
-  GetPrimitiveOutput(&cur_output);
-
-  auto new_plan = new MoveToolStraightUntilTouch(
-      "MoveStraightUntilTouch", &get_robot(), &get_tool_frame(),
-      cur_output.q_cmd, dir_W, vel);
-  new_plan->set_f_ext_thresh(force_thresh);
-  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
-}
-
 void IiwaController::MoveToolFollowTraj(
     const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-    double Fz_thresh, double Fz, double mu, double yaw_mu) {
+    const Eigen::Vector6d& F_thresh,
+    const Eigen::Vector6d& F) {
   PrimitiveOutput cur_output;
   GetPrimitiveOutput(&cur_output);
 
   auto new_plan = new class MoveToolFollowTraj(
       "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
-      traj, Fz_thresh);
-  new_plan->set_fz(Fz);
-  new_plan->set_mu(mu);
-  new_plan->set_yaw_mu(yaw_mu);
+      traj, F_thresh);
+  new_plan->set_applied_F(F);
   for (const auto& collision_pair : collisions_)
     new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
   SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
