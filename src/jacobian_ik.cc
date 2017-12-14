@@ -31,16 +31,18 @@ JacobianIk::ComputePoseDiffInWorldFrame(const Eigen::Isometry3d &pose0,
 
 void JacobianIk::Setup() {
   DRAKE_DEMAND(robot_->get_num_positions() == robot_->get_num_velocities());
+  const int num_joints = robot_->get_num_velocities();
 
   q_lower_ = robot_->joint_limit_min;
   q_upper_ = robot_->joint_limit_max;
-  v_lower_ = Eigen::VectorXd::Constant(robot_->get_num_velocities(), -2);
-  v_upper_ = Eigen::VectorXd::Constant(robot_->get_num_velocities(), 2);
+  v_lower_ = Eigen::VectorXd::Constant(num_joints, -2);
+  v_upper_ = Eigen::VectorXd::Constant(num_joints, 2);
+  vd_lower_ = Eigen::VectorXd::Constant(num_joints, -20);
+  vd_upper_ = Eigen::VectorXd::Constant(num_joints, 20);
   unconstrained_dof_v_limit_ = Eigen::VectorXd::Constant(1, 0.6);
 
-  identity_ = Eigen::MatrixXd::Identity(robot_->get_num_positions(),
-                                        robot_->get_num_positions());
-  zero_ = Eigen::VectorXd::Zero(robot_->get_num_velocities());
+  identity_ = Eigen::MatrixXd::Identity(num_joints, num_joints);
+  zero_ = Eigen::VectorXd::Zero(num_joints);
 }
 
 void JacobianIk::SetJointSpeedLimit(const Eigen::VectorXd &v_upper,
@@ -50,6 +52,16 @@ void JacobianIk::SetJointSpeedLimit(const Eigen::VectorXd &v_upper,
   v_lower_ = v_lower;
   v_upper_ = v_upper;
 }
+
+void JacobianIk::SetJointAccelerationLimit(
+    const Eigen::VectorXd &vd_upper,
+    const Eigen::VectorXd &vd_lower) {
+  DRAKE_DEMAND(vd_upper.size() == vd_lower.size());
+  DRAKE_DEMAND(vd_lower.size() == vd_lower_.size());
+  vd_lower_ = vd_lower;
+  vd_upper_ = vd_upper;
+}
+
 
 JacobianIk::JacobianIk(const RigidBodyTree<double> *robot) : robot_{robot} {
   Setup();
@@ -74,7 +86,10 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
     const KinematicsCache<double> &cache,
     const std::vector<std::pair<Capsule, Capsule>>& collisions,
     const RigidBodyFrame<double> &frame_E, const Eigen::Vector6d &V_WE,
-    const Eigen::VectorXd &q_nominal, double dt, bool *is_stuck,
+    double dt,
+    const Eigen::VectorXd &q_nominal,
+    const Eigen::VectorXd &v_last,
+    bool *is_stuck,
     const Eigen::Vector6d &gain_E) const {
   DRAKE_DEMAND(q_nominal.size() == robot_->get_num_positions());
   DRAKE_DEMAND(dt > 0);
@@ -120,15 +135,24 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
   prog.AddL2NormCost(J_WE_E, V_WE_E, v);
   */
 
-  // Add a small regularization
-  prog.AddQuadraticCost(1e-3 * identity_ * dt * dt,
-                        1e-3 * (cache.getQ() - q_nominal) * dt,
-                        1e-3 * (cache.getQ() - q_nominal).squaredNorm(), v);
+  // Add a small regularization.
+  auto posture_cost =
+      prog.AddQuadraticCost(1e-3 * identity_ * dt * dt,
+                            1e-3 * (cache.getQ() - q_nominal) * dt,
+                            1e-3 * (cache.getQ() - q_nominal).squaredNorm(), v);
 
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(J_WE_E, Eigen::ComputeFullV);
 
-  // Add v constraint
+  // Add v constraint.
   prog.AddBoundingBoxConstraint(v_lower_, v_upper_, v);
+
+  /*
+  // Add vd constraint.
+  prog.AddLinearConstraint(identity_,
+                           vd_lower_ * dt + v_last,
+                           vd_upper_ * dt + v_last,
+                           v);
+  */
 
   // Add constrained the unconstrained dof's velocity to be small, which is used
   // to fullfil the regularization cost.
@@ -168,18 +192,22 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
 
   // Solve
   drake::solvers::SolutionResult result = prog.Solve();
-  DRAKE_DEMAND(result == drake::solvers::SolutionResult::kSolutionFound);
+  if (result != drake::solvers::SolutionResult::kSolutionFound) {
+    std::cout << "SCS CANT SOLVE: " << result << "\n";
+    *is_stuck = false;
+    return Eigen::VectorXd::Zero(robot_->get_num_velocities());
+  }
   ret = prog.GetSolution(v);
 
   Eigen::VectorXd cost(1);
   err_cost.constraint()->Eval(prog.GetSolution(alpha), cost);
   // Not tracking the desired vel norm, and computed vel is small.
-  *is_stuck = cost(0) > 5 && prog.GetSolution(alpha).norm() < 1e-3;
-  // std::cout << "cost: " << cost(0) << ", " << prog.GetSolution(alpha).norm() << "\n";
+  *is_stuck = cost(0) > 5 && prog.GetSolution(alpha)[0] <= 1e-2;
 
-  /*
-  *is_stuck = false;
-  */
+  // std::cout << "err_cost: " << cost(0) << ", " << prog.GetSolution(alpha).norm() << "\n";
+
+  posture_cost.constraint()->Eval(prog.GetSolution(v), cost);
+  // std::cout << "posture_cost: " << cost(0) << "\n";
 
   return ret;
 }
@@ -197,7 +225,7 @@ bool JacobianIk::Plan(const Eigen::VectorXd &q0,
   Eigen::Isometry3d pose_now;
   double time_now = 0;
 
-  Eigen::VectorXd v;
+  Eigen::VectorXd v = Eigen::VectorXd::Zero(q_nominal.size());
   bool is_stuck;
 
   q_sol->resize(pose_traj.size());
@@ -211,7 +239,7 @@ bool JacobianIk::Plan(const Eigen::VectorXd &q0,
     Eigen::Vector6d V_WE_d =
         ComputePoseDiffInWorldFrame(pose_now, pose_traj[t]) / dt;
 
-    v = ComputeDofVelocity(cache, {}, frame_E, V_WE_d, q_nominal, dt, &is_stuck);
+    v = ComputeDofVelocity(cache, {}, frame_E, V_WE_d, dt, q_nominal, v, &is_stuck);
 
     q_now += v * dt;
     time_now = times[t];

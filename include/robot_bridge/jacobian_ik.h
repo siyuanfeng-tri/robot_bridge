@@ -47,6 +47,10 @@ public:
   void SetJointSpeedLimit(const Eigen::VectorXd &v_upper,
                           const Eigen::VectorXd &v_lower);
 
+  void SetJointAccelerationLimit(
+      const Eigen::VectorXd &vd_upper,
+      const Eigen::VectorXd &vd_lower);
+
   /**
    * @param cache0 Captures the current state of the robot.
    * @param V_WE Desired end effector (frame E) velocity in the world frame.
@@ -58,7 +62,10 @@ public:
       const KinematicsCache<double> &cache0,
       const std::vector<std::pair<Capsule, Capsule>>& collisions,
       const RigidBodyFrame<double> &frame_E, const Eigen::Vector6d &V_WE,
-      const Eigen::VectorXd &q_nominal, double dt, bool *is_stuck,
+      double dt,
+      const Eigen::VectorXd &q_nominal,
+      const Eigen::VectorXd &v_last,
+      bool *is_stuck,
       const Eigen::Vector6d &gain_E = Eigen::Vector6d::Constant(1)) const;
 
   /**
@@ -72,6 +79,8 @@ public:
 
   const Eigen::VectorXd &get_velocity_upper_limit() const { return v_upper_; }
   const Eigen::VectorXd &get_velocity_lower_limit() const { return v_lower_; }
+  const Eigen::VectorXd &get_acceleration_upper_limit() const { return vd_upper_; }
+  const Eigen::VectorXd &get_acceleration_lower_limit() const { return vd_lower_; }
 
 private:
   void Setup();
@@ -83,6 +92,8 @@ private:
   Eigen::VectorXd q_upper_;
   Eigen::VectorXd v_lower_;
   Eigen::VectorXd v_upper_;
+  Eigen::VectorXd vd_lower_;
+  Eigen::VectorXd vd_upper_;
   Eigen::VectorXd unconstrained_dof_v_limit_;
   Eigen::MatrixXd identity_;
   Eigen::VectorXd zero_;

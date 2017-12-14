@@ -122,11 +122,17 @@ void MoveTool::Update(const RobotState &state) {
       jaco_planner_.ComputePoseDiffInWorldFrame(X_WT, X_WT_d) / dt;
 
   Eigen::VectorXd v = jaco_planner_.ComputeDofVelocity(
-      cache_, collisions_, frame_T_, V_WT_d, q_norm_, dt, &is_stuck_, gain_T_);
+      cache_, collisions_,
+      frame_T_, V_WT_d,
+      dt,
+      q_norm_, cache_.getV(),
+      &is_stuck_,
+      gain_T_);
 
   // Integrate ik's fake state.
   cache_.initialize(cache_.getQ() + v * dt, v);
   robot.doKinematics(cache_);
+
   for (auto& pair : collisions_) {
     pair.first.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.first.get_frame()));
     pair.second.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.second.get_frame()));
@@ -323,19 +329,6 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
 
   // const Eigen::VectorXd& ik_v = get_cache().getV();
 
-  /*
-  std::cout << "stuck: " << is_stuck() << ", " <<
-    state.get_v().norm() << ", " <<
-    ik_v.norm() << ", " <<
-    get_in_state_time(state) << ", " << duration << "\n";
-
-  std::cout <<
-    (state.get_ext_wrench()[5] > Fz_thresh_) << ", " <<
-    (state.get_v().norm() < 1e-2 && get_in_state_time(state) > 3 * duration) << ", " <<
-    (diff.norm() < 1e-2 && get_in_state_time(state) > duration) << ", " <<
-    "\n";
-  */
-
   if (state.get_ext_wrench()[5] > Fz_thresh_) {
     return MotionStatus::ERR_FORCE_SAFETY;
   }
@@ -345,7 +338,11 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
   }
 
   // if (is_stuck() || (state.get_v().norm() < 1e-2 && get_in_state_time(state) > 3 * duration)) {
-  if (state.get_v().norm() < 1e-2 && get_in_state_time(state) > 2 * duration) {
+  if (state.get_v().norm() < 1e-3 &&
+      get_in_state_time(state) > 2 * duration) {
+    return MotionStatus::ERR_STUCK;
+  }
+  if (is_stuck()) {
     return MotionStatus::ERR_STUCK;
   }
 
