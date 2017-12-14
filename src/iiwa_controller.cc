@@ -115,14 +115,18 @@ IiwaController::MoveToolAndApplyWrench(
     const Eigen::Vector6d& F_thresh,
     const Eigen::Vector6d& F,
     bool blocking) {
-  RobotState robot_state(&get_robot(), &get_tool_frame());
-  GetRobotState(&robot_state);
+  // Start with the last commanded tool pose.
+  Eigen::Isometry3d start_pose = GetDesiredToolPose();
+  // If the last commanded tool pose is I, means unset,
+  // probably was in joint mode, start with measured tool pose.
+  if (start_pose.matrix().isApprox(Eigen::Matrix4d::Identity())) {
+    start_pose = GetToolPose();
+  }
 
-  Eigen::Isometry3d cur_pose_ee = robot_state.get_X_WT();
   drake::manipulation::PiecewiseCartesianTrajectory<double> traj =
       drake::manipulation::PiecewiseCartesianTrajectory<double>::
           MakeCubicLinearWithEndLinearVelocity(
-              {0, duration}, {cur_pose_ee, tgt_pose_ee},
+              {0, duration}, {start_pose, tgt_pose_ee},
               Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
 
   MoveToolFollowTraj(traj, F_thresh, F);
