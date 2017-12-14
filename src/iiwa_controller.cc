@@ -122,7 +122,7 @@ IiwaController::MoveToolAndApplyWrench(
   drake::manipulation::PiecewiseCartesianTrajectory<double> traj =
       drake::manipulation::PiecewiseCartesianTrajectory<double>::
           MakeCubicLinearWithEndLinearVelocity(
-              {0.2, duration}, {cur_pose_ee, tgt_pose_ee},
+              {0, duration}, {cur_pose_ee, tgt_pose_ee},
               Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
 
   MoveToolFollowTraj(traj, F_thresh, F);
