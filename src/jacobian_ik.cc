@@ -102,38 +102,42 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
   drake::solvers::VectorXDecisionVariable alpha =
       prog.NewContinuousVariables(1, "alpha");
 
-  // Add ee vel constraint.
   Eigen::Isometry3d X_WE = robot_->CalcFramePoseInWorldFrame(cache, frame_E);
 
+  // Rotate the world velocity into E frame.
   drake::Matrix6<double> R_EW = drake::Matrix6<double>::Zero();
   R_EW.block<3, 3>(0, 0) = X_WE.linear().transpose();
   R_EW.block<3, 3>(3, 3) = R_EW.block<3, 3>(0, 0);
 
-  // Rotate the velocity into E frame.
-  Eigen::MatrixXd J_WE_E =
+  Eigen::MatrixXd J_WE_E_6d =
       R_EW *
       robot_->CalcFrameSpatialVelocityJacobianInWorldFrame(cache, frame_E);
+  Eigen::Vector6d V_WE_E_6d = R_EW * V_WE;
 
+  // Pick the constrained motions.
+  int num_cart_constraints = 0;
   for (int i = 0; i < 6; i++) {
-    J_WE_E.row(i) = gain_E(i) * J_WE_E.row(i);
+    if (gain_E(i) > 0) {
+      J_WE_E_6d.row(num_cart_constraints) = gain_E(i) * J_WE_E_6d.row(i);
+      V_WE_E_6d(num_cart_constraints) = gain_E(i) * V_WE_E_6d(i);
+      num_cart_constraints++;
+    }
   }
+  Eigen::MatrixXd J_WE_E = J_WE_E_6d.topRows(num_cart_constraints);
+  Eigen::VectorXd V_WE_E = V_WE_E_6d.head(num_cart_constraints);
 
-  Eigen::Vector6d V_WE_E = R_EW * V_WE;
-  V_WE_E = (V_WE_E.array() * gain_E.array()).matrix();
-
-  Eigen::Vector6d V_WE_E_dir = V_WE_E.normalized();
+  Eigen::VectorXd V_WE_E_dir = V_WE_E.normalized();
   double V_WE_E_mag = V_WE_E.norm();
 
-  Eigen::MatrixXd A(6, J_WE_E.cols() + 1);
-  A.topLeftCorner(6, J_WE_E.cols()) = J_WE_E;
-  A.topRightCorner(6, 1) = -V_WE_E_dir;
-  prog.AddLinearEqualityConstraint(A, Eigen::Vector6d::Zero(), {v, alpha});
+  // Constrain the end effector motion to be in the direction of V_WE_E_dir,
+  // and penalize magnitude difference from V_WE_E_mag.
+  Eigen::MatrixXd A(num_cart_constraints, J_WE_E.cols() + 1);
+  A.topLeftCorner(num_cart_constraints, J_WE_E.cols()) = J_WE_E;
+  A.topRightCorner(num_cart_constraints, 1) = -V_WE_E_dir;
+  prog.AddLinearEqualityConstraint(
+      A, Eigen::VectorXd::Zero(num_cart_constraints), {v, alpha});
   auto err_cost = prog.AddQuadraticErrorCost(
       drake::Vector1<double>(1), drake::Vector1<double>(V_WE_E_mag), alpha);
-
-  /*
-  prog.AddL2NormCost(J_WE_E, V_WE_E, v);
-  */
 
   // Add a small regularization.
   auto posture_cost =
@@ -156,9 +160,11 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
 
   // Add constrained the unconstrained dof's velocity to be small, which is used
   // to fullfil the regularization cost.
-  prog.AddLinearConstraint(svd.matrixV().col(6).transpose(),
-                           -unconstrained_dof_v_limit_,
-                           unconstrained_dof_v_limit_, v);
+  for (int i = num_cart_constraints; i < svd.matrixV().cols(); i++) {
+    prog.AddLinearConstraint(svd.matrixV().col(i).transpose(),
+        -unconstrained_dof_v_limit_,
+        unconstrained_dof_v_limit_, v);
+  }
 
   // Add q upper and lower joint limit.
   prog.AddLinearConstraint(identity_ * dt, q_lower_ - cache.getQ(),

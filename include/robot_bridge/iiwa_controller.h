@@ -34,6 +34,7 @@ public:
                                 bool blocking) override;
 
   MotionStatus MoveToolAndApplyWrench(const Eigen::Isometry3d &tgt_pose_ee,
+                                      const Eigen::Vector6d& gains_E,
                                       double duration,
                                       const Eigen::Vector6d& F_thresh,
                                       const Eigen::Vector6d& F,
@@ -79,6 +80,7 @@ private:
   // absolute clock.
   void MoveToolFollowTraj(
       const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
+      const Eigen::Vector6d& gains_E,
       const Eigen::Vector6d& F_thresh,
       const Eigen::Vector6d& F);
 
