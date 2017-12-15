@@ -68,6 +68,16 @@ public:
         Eigen::Vector6d::Zero(), blocking);
   }
 
+  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
+                        const Eigen::Vector6d& gains_E,
+                        double duration,
+                        const Eigen::Vector6d& F_thresh,
+                        bool blocking) {
+    return MoveToolAndApplyWrench(
+        tgt_pose_ee, gains_E, duration,
+        F_thresh, Eigen::Vector6d::Zero(), blocking);
+  }
+
   virtual MotionStatus MoveToolAndApplyWrench(
       const Eigen::Isometry3d &tgt_pose_ee,
       const Eigen::Vector6d& gains_E,
