@@ -231,18 +231,25 @@ void MoveToolFollowTraj::Update(const RobotState &state) {
     Eigen::Isometry3d X_WT0 = X_WT_traj_.get_pose(start_time);
     Eigen::Isometry3d X_WT1 = get_X_WT_ik();
 
+    /*
     X_WT_traj_ = drake::manipulation::PiecewiseCartesianTrajectory<
         double>::MakeCubicLinearWithEndLinearVelocity({start_time, end_time},
                                                       {X_WT0, X_WT1},
                                                       Eigen::Vector3d::Zero(),
                                                       Eigen::Vector3d::Zero());
+    */
+    X_WT_traj_ = drake::manipulation::SingleSegmentCartesianTrajectory<double>(
+        X_WT0, X_WT1, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
+        0, 0,
+        start_time, end_time);
   }
 }
 
 MoveToolFollowTraj::MoveToolFollowTraj(
     const std::string &name, const RigidBodyTree<double> *robot,
     const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-    const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
+    const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
+    //const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
     const Eigen::Vector6d& F_thresh)
     : MoveTool(name, robot, frame_T, q0, MOVE_TOOL, F_thresh),
       X_WT_traj_(traj) {}
@@ -272,11 +279,19 @@ void MoveToolFollowTraj::UpdateToolGoal(const RobotState &state,
 
   end_time = std::max(end_time, start_time + min_dt);
 
+  /*
   auto traj = drake::manipulation::PiecewiseCartesianTrajectory<
       double>::MakeCubicLinearWithEndLinearVelocity({start_time, end_time},
                                                     {X_WT, new_goal},
                                                     V_WT.tail<3>(),
                                                     Eigen::Vector3d::Zero());
+  */
+
+  // this is sketchy
+  auto traj = drake::manipulation::SingleSegmentCartesianTrajectory<double>(
+      X_WT, new_goal, V_WT.tail<3>(), Eigen::Vector3d::Zero(),
+      0, 0,
+      start_time, end_time);
   X_WT_traj_ = traj;
 }
 
@@ -312,7 +327,7 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
     return MotionStatus::ERR_FORCE_SAFETY;
   }
 
-  if (diff.norm() < 1e-2 && get_in_state_time(state) > duration) {
+  if (diff.norm() < 1e-3 && get_in_state_time(state) > duration) {
     return MotionStatus::DONE;
   }
 

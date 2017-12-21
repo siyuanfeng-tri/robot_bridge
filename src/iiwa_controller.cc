@@ -124,11 +124,16 @@ IiwaController::MoveToolAndApplyWrench(
     start_pose = GetToolPose();
   }
 
+  /*
   drake::manipulation::PiecewiseCartesianTrajectory<double> traj =
       drake::manipulation::PiecewiseCartesianTrajectory<double>::
           MakeCubicLinearWithEndLinearVelocity(
               {0, duration}, {start_pose, tgt_pose_ee},
               Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero());
+  */
+  auto traj = drake::manipulation::SingleSegmentCartesianTrajectory<double>(
+      start_pose, tgt_pose_ee, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
+      0, 0, 0, duration);
 
   MoveToolFollowTraj(traj, gains_E, F_thresh, F);
   if (blocking)
@@ -293,6 +298,29 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des) {
 
 void IiwaController::MoveToolFollowTraj(
     const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
+    const Eigen::Vector6d& gains_E,
+    const Eigen::Vector6d& F_thresh,
+    const Eigen::Vector6d& F) {
+
+  throw std::runtime_error("use SingleSegmentCartesianTrajectory version instead.");
+
+  /*
+  PrimitiveOutput cur_output;
+  GetPrimitiveOutput(&cur_output);
+
+  auto new_plan = new class MoveToolFollowTraj(
+      "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
+      traj, F_thresh);
+  new_plan->set_applied_F(F);
+  new_plan->set_tool_gain(gains_E);
+  for (const auto& collision_pair : collisions_)
+    new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
+  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
+  */
+}
+
+void IiwaController::MoveToolFollowTraj(
+    const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
     const Eigen::Vector6d& gains_E,
     const Eigen::Vector6d& F_thresh,
     const Eigen::Vector6d& F) {

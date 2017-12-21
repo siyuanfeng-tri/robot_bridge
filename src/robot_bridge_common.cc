@@ -94,6 +94,84 @@ Eigen::Matrix<double, 7, 1> pose_to_vec(const Eigen::Isometry3d &pose) {
   return ret;
 }
 
+bool InverseKinTraj(
+    const RigidBodyTree<double> &robot,
+    const RigidBodyFrame<double> &frame,
+    const std::vector<Eigen::Isometry3d>& poses,
+    const std::vector<double>& times,
+    const Eigen::VectorXd& q_guess,
+    std::vector<Eigen::VectorXd>* result_q) {
+  std::vector<RigidBodyConstraint *> constraint_array;
+  std::vector<std::unique_ptr<RigidBodyConstraint>> constraint_array_real;
+
+  RigidBodyTree<double> *robot_ptr = (RigidBodyTree<double> *)&robot;
+
+  if (poses.size() != times.size())
+    return false;
+
+  const Eigen::Vector3d pos_tol(0.003, 0.003, 0.003);
+  const double rot_tol = 0.001;
+
+  for (size_t i = 0; i < poses.size(); i++) {
+    const Eigen::Isometry3d& X_WT = poses[i];
+    const double time = times[i];
+    if (i > 0 && time <= times[i - 1])
+      return false;
+
+    Eigen::Isometry3d X_WE = X_WT * frame.get_transform_to_body().inverse();
+
+    // Position constraint
+    const Eigen::Vector3d pos_lb = X_WE.translation() - pos_tol;
+    const Eigen::Vector3d pos_ub = X_WE.translation() + pos_tol;
+    constraint_array_real.emplace_back(
+        std::make_unique<WorldPositionConstraint>(
+            robot_ptr, frame.get_rigid_body().get_body_index(),
+            Eigen::Vector3d::Zero(), pos_lb, pos_ub,
+            Eigen::Vector2d(time, time)));
+    constraint_array.push_back(constraint_array_real.back().get());
+
+    // Orientation constraint
+    constraint_array_real.emplace_back(
+        std::make_unique<WorldQuatConstraint>(
+            robot_ptr, frame.get_rigid_body().get_body_index(),
+            drake::math::rotmat2quat(X_WE.linear()), rot_tol,
+            Eigen::Vector2d(time, time)));
+    constraint_array.push_back(constraint_array_real.back().get());
+  }
+
+  Eigen::VectorXd q_res = Eigen::VectorXd::Zero(7);
+  Eigen::VectorXd zero = Eigen::VectorXd::Zero(7);
+
+  Eigen::VectorXd T(times.size());
+  Eigen::MatrixXd q0(robot.get_num_positions(), times.size());
+  Eigen::MatrixXd q_norm(robot.get_num_positions(), times.size());
+  for (size_t i = 0; i < times.size(); i++) {
+    q0.col(i) = q_guess;
+    q_norm.col(i) = robot.getZeroConfiguration();
+    T[i] = times[i];
+  }
+
+  IKoptions ikoptions(robot_ptr);
+  ikoptions.setFixInitialState(false);
+  auto result = inverseKinTrajSimple(robot_ptr, T, q0, q_norm, constraint_array,
+                                     ikoptions);
+
+  for (const auto &q : result.q_sol)
+    std::cout << q.transpose() << "\n";
+
+  int ctr = 0;
+  for (const auto &info : result.info) {
+    if (info >= 10) {
+      std::cout << "info" << ctr << ": " << info << "\n";
+      return false;
+    }
+    ctr++;
+  }
+
+  *result_q = result.q_sol;
+  return true;
+}
+
 Eigen::VectorXd PointIk(const Eigen::Isometry3d &X_WT,
                         const RigidBodyFrame<double> &frame_T,
                         const Eigen::VectorXd &q_ini,

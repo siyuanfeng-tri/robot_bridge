@@ -7,7 +7,8 @@
 
 #include "drake/manipulation/util/trajectory_utils.h"
 
-#include "jacobian_ik.h"
+#include "robot_bridge/jacobian_ik.h"
+#include "robot_bridge/trajectory.h"
 
 namespace robot_bridge {
 
@@ -239,11 +240,13 @@ public:
   MoveToolFollowTraj(
       const std::string &name, const RigidBodyTree<double> *robot,
       const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-      const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
+      const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
+      //const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
       const Eigen::Vector6d& F_thresh);
 
   void set_X_WT_traj(
-      const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj) {
+      const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj) {
+      //const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj) {
     X_WT_traj_ = traj;
   }
 
@@ -268,7 +271,8 @@ private:
   void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
-  drake::manipulation::PiecewiseCartesianTrajectory<double> X_WT_traj_;
+  drake::manipulation::SingleSegmentCartesianTrajectory<double> X_WT_traj_;
+  //drake::manipulation::PiecewiseCartesianTrajectory<double> X_WT_traj_;
 
   Eigen::Vector6d F_{Eigen::Vector6d::Zero()};
 };
