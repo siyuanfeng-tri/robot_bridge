@@ -72,24 +72,6 @@ private:
 
   void MoveJ(const Eigen::VectorXd &q_des);
 
-  // Fz is in world frame.
-  // If you don't want to deal with any of the force crap, just set
-  // them all the zero.
-  //
-  // Note: the timing in traj should be relative, i.e time range = [0, 2], not
-  // absolute clock.
-  void MoveToolFollowTraj(
-      const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-      const Eigen::Vector6d& gains_E,
-      const Eigen::Vector6d& F_thresh,
-      const Eigen::Vector6d& F);
-
-  void MoveToolFollowTraj(
-      const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
-      const Eigen::Vector6d& gains_E,
-      const Eigen::Vector6d& F_thresh,
-      const Eigen::Vector6d& F);
-
   // position is in [m], force is in N. should be positive absolute value.
   void SetGripperPositionAndForce(double position, double force);
 

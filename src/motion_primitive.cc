@@ -161,15 +161,27 @@ MoveToolStraightUntilTouch::MoveToolStraightUntilTouch(
     : MoveTool(name, robot, frame_T, q0,
                MotionPrimitive::MOVE_TOOL_STRAIGHT_UNTIL_TOUCH,
                F_thresh),
-      dir_{dir}, vel_{vel} {
-  dir_.normalize();
-  X_WT0_ = get_X_WT_ik();
+      X_WT0_{get_X_WT_ik()}, dir_{dir.normalized()}, vel_{vel} {}
+
+void MoveToolStraightUntilTouch::Update(const RobotState &state) {
+  if (is_F_over_thresh(state.get_ext_wrench()) && !stopped_) {
+    stopped_ = true;
+    X_WT_stopped_ = get_X_WT_ik();
+  }
+
+  MoveTool::Update(state);
 }
 
 Eigen::Isometry3d MoveToolStraightUntilTouch::ComputeDesiredToolInWorld(
     const RobotState &state) const {
   Eigen::Isometry3d ret = X_WT0_;
-  ret.translation() += dir_ * vel_ * get_in_state_time(state);
+  if (!stopped_) {
+    ret.translation() += dir_ * vel_ * get_in_state_time(state);
+  }
+  else {
+    ret.translation() = X_WT_stopped_.translation();
+  }
+
   return ret;
 }
 
@@ -222,9 +234,7 @@ HoldPositionAndApplyForce::ComputeStatus(const RobotState &state) const {
 
 ///////////////////////////////////////////////////////////
 void MoveToolFollowTraj::Update(const RobotState &state) {
-  MoveTool::Update(state);
-
-  if (is_F_over_thresh(state.get_ext_wrench())) {
+  if (is_F_over_thresh(state.get_ext_wrench()) && !stopped_) {
     const double end_time = get_in_state_time(state);
     const double start_time =
         X_WT_traj_.get_position_trajectory().get_start_time();
@@ -242,7 +252,10 @@ void MoveToolFollowTraj::Update(const RobotState &state) {
         X_WT0, X_WT1, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
         0, 0,
         start_time, end_time);
+    stopped_ = true;
   }
+
+  MoveTool::Update(state);
 }
 
 MoveToolFollowTraj::MoveToolFollowTraj(

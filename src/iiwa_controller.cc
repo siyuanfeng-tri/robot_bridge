@@ -116,13 +116,17 @@ IiwaController::MoveToolAndApplyWrench(
     const Eigen::Vector6d& F_thresh,
     const Eigen::Vector6d& F,
     bool blocking) {
-  // Start with the last commanded tool pose.
-  Eigen::Isometry3d start_pose = GetDesiredToolPose();
-  // If the last commanded tool pose is I, means unset,
-  // probably was in joint mode, start with measured tool pose.
-  if (start_pose.matrix().isApprox(Eigen::Matrix4d::Identity())) {
-    start_pose = GetToolPose();
-  }
+
+  PrimitiveOutput cur_output;
+  GetPrimitiveOutput(&cur_output);
+  const RigidBodyTree<double>& robot = get_robot();
+
+  // Compute the commanded tool frame pose from the commanded q.
+  KinematicsCache<double> tmp_cache = robot.CreateKinematicsCache();
+  tmp_cache.initialize(cur_output.q_cmd);
+  robot.doKinematics(tmp_cache);
+  const Eigen::Isometry3d start_pose =
+      robot.CalcFramePoseInWorldFrame(tmp_cache, get_tool_frame());
 
   /*
   drake::manipulation::PiecewiseCartesianTrajectory<double> traj =
@@ -135,7 +139,15 @@ IiwaController::MoveToolAndApplyWrench(
       start_pose, tgt_pose_ee, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
       0, 0, 0, duration);
 
-  MoveToolFollowTraj(traj, gains_E, F_thresh, F);
+  auto new_plan = new class MoveToolFollowTraj(
+      "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
+      traj, F_thresh);
+  new_plan->set_applied_F(F);
+  new_plan->set_tool_gain(gains_E);
+  for (const auto& collision_pair : collisions_)
+    new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
+  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
+
   if (blocking)
     return WaitForRobotMotionCompletion();
   return GetRobotMotionStatus();
@@ -294,47 +306,6 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des) {
   std::unique_ptr<MotionPrimitive> new_plan(
       new MoveJoint("MoveJ", &get_robot(), cur_output.q_cmd, q_des));
   SwapPlan(std::move(new_plan));
-}
-
-void IiwaController::MoveToolFollowTraj(
-    const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-    const Eigen::Vector6d& gains_E,
-    const Eigen::Vector6d& F_thresh,
-    const Eigen::Vector6d& F) {
-
-  throw std::runtime_error("use SingleSegmentCartesianTrajectory version instead.");
-
-  /*
-  PrimitiveOutput cur_output;
-  GetPrimitiveOutput(&cur_output);
-
-  auto new_plan = new class MoveToolFollowTraj(
-      "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
-      traj, F_thresh);
-  new_plan->set_applied_F(F);
-  new_plan->set_tool_gain(gains_E);
-  for (const auto& collision_pair : collisions_)
-    new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
-  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
-  */
-}
-
-void IiwaController::MoveToolFollowTraj(
-    const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
-    const Eigen::Vector6d& gains_E,
-    const Eigen::Vector6d& F_thresh,
-    const Eigen::Vector6d& F) {
-  PrimitiveOutput cur_output;
-  GetPrimitiveOutput(&cur_output);
-
-  auto new_plan = new class MoveToolFollowTraj(
-      "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
-      traj, F_thresh);
-  new_plan->set_applied_F(F);
-  new_plan->set_tool_gain(gains_E);
-  for (const auto& collision_pair : collisions_)
-    new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
-  SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
 }
 
 void IiwaController::UpdateToolGoal(

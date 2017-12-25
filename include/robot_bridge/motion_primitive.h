@@ -197,15 +197,19 @@ public:
 
   Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const override;
+  void Update(const RobotState &state) override;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
   MotionStatus ComputeStatus(const RobotState &state) const override;
 
-  Eigen::Isometry3d X_WT0_;
-  Eigen::Vector3d dir_;
-  double vel_;
+  const Eigen::Isometry3d X_WT0_;
+  const Eigen::Vector3d dir_;
+  const double vel_;
+
+  Eigen::Isometry3d X_WT_stopped_;
+  bool stopped_{false};
 };
 
 class HoldPositionAndApplyForce : public MotionPrimitive {
@@ -275,6 +279,8 @@ private:
   //drake::manipulation::PiecewiseCartesianTrajectory<double> X_WT_traj_;
 
   Eigen::Vector6d F_{Eigen::Vector6d::Zero()};
+
+  bool stopped_{false};
 };
 
 } // namespace robot_bridge
