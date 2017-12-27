@@ -37,6 +37,12 @@ IiwaController::IiwaController(const RigidBodyTree<double> &robot,
   sub = lcm_.subscribe(kLcmWsgStatusChannel, &IiwaController::HandleWsgStatus,
                        this);
   sub->setQueueCapacity(1);
+
+  // HACK, these are iiwa specific.
+  v_upper_.resize(7);
+  v_upper_ << 85, 85, 100, 75, 130, 135, 135;
+  v_upper_ = v_upper_ * M_PI / 180.;
+  v_lower_ = -v_upper_;
 }
 
 void IiwaController::Start() {
@@ -113,7 +119,8 @@ IiwaController::MoveToolAndApplyWrench(
     const Eigen::Isometry3d &tgt_pose_ee,
     const Eigen::Vector6d& gains_E,
     double duration,
-    const Eigen::Vector6d& F_thresh,
+    const Eigen::Vector6d& F_upper,
+    const Eigen::Vector6d& F_lower,
     const Eigen::Vector6d& F,
     bool blocking) {
 
@@ -140,8 +147,9 @@ IiwaController::MoveToolAndApplyWrench(
       0, 0, 0, duration);
 
   auto new_plan = new class MoveToolFollowTraj(
-      "MoveToolFollowTraj", &get_robot(), &get_tool_frame(), cur_output.q_cmd,
-      traj, F_thresh);
+      "MoveToolFollowTraj", &get_robot(), v_upper_, v_lower_,
+      &get_tool_frame(), cur_output.q_cmd,
+      traj, F_upper, F_lower);
   new_plan->set_applied_F(F);
   new_plan->set_tool_gain(gains_E);
   for (const auto& collision_pair : collisions_)
@@ -154,18 +162,21 @@ IiwaController::MoveToolAndApplyWrench(
 }
 
 MotionStatus IiwaController::MoveStraightUntilTouch(
-    const Eigen::Vector3d &dir_W,
-    double vel, const Eigen::Vector3d& force_thresh,
+    const Eigen::Vector3d &dir_W, double vel,
+    const Eigen::Vector3d& f_upper,
+    const Eigen::Vector3d& f_lower,
     bool blocking) {
   PrimitiveOutput cur_output;
   GetPrimitiveOutput(&cur_output);
 
-  Eigen::Vector6d thresh = Eigen::Vector6d::Constant(1000);
-  thresh.tail<3>() = force_thresh;
+  Eigen::Vector6d upper = Eigen::Vector6d::Constant(1000);
+  upper.tail<3>() = f_upper;
+  Eigen::Vector6d lower = Eigen::Vector6d::Constant(-1000);
+  lower.tail<3>() = f_lower;
 
   auto new_plan = new MoveToolStraightUntilTouch(
-      "MoveStraightUntilTouch", &get_robot(), &get_tool_frame(),
-      cur_output.q_cmd, dir_W, vel, thresh);
+      "MoveStraightUntilTouch", &get_robot(), v_upper_, v_lower_,
+      &get_tool_frame(), cur_output.q_cmd, dir_W, vel, upper, lower);
   SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
 
   if (blocking)
@@ -285,7 +296,8 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des, double duration) {
   GetPrimitiveOutput(&cur_output);
 
   std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), cur_output.q_cmd, q_des, duration));
+      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
+                    cur_output.q_cmd, q_des, duration));
   SwapPlan(std::move(new_plan));
 }
 
@@ -295,7 +307,8 @@ void IiwaController::MoveJ(const std::vector<Eigen::VectorXd> &q_des,
   GetPrimitiveOutput(&cur_output);
 
   std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), cur_output.q_cmd, q_des, duration));
+      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
+                    cur_output.q_cmd, q_des, duration));
   SwapPlan(std::move(new_plan));
 }
 
@@ -304,7 +317,8 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des) {
   GetPrimitiveOutput(&cur_output);
 
   std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), cur_output.q_cmd, q_des));
+      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
+                    cur_output.q_cmd, q_des));
   SwapPlan(std::move(new_plan));
 }
 
@@ -410,7 +424,8 @@ void IiwaController::ControlLoop() {
 
   // Make initial plan to go to q1.
   auto plan = std::unique_ptr<MotionPrimitive>(
-      new MoveJoint("hold_q", &robot, state.get_q(), state.get_q(), 0.1));
+      new MoveJoint("hold_q", &robot, v_upper_, v_lower_,
+                    state.get_q(), state.get_q(), 0.1));
   SwapPlan(std::move(plan));
   {
     std::lock_guard<std::mutex> guard(motion_lock_);

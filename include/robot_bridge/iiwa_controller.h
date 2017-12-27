@@ -36,12 +36,14 @@ public:
   MotionStatus MoveToolAndApplyWrench(const Eigen::Isometry3d &tgt_pose_ee,
                                       const Eigen::Vector6d& gains_E,
                                       double duration,
-                                      const Eigen::Vector6d& F_thresh,
+                                      const Eigen::Vector6d& F_upper,
+                                      const Eigen::Vector6d& F_lower,
                                       const Eigen::Vector6d& F,
                                       bool blocking) override;
   MotionStatus MoveStraightUntilTouch(
       const Eigen::Vector3d &dir_W, double vel,
-      const Eigen::Vector3d& F_thresh,
+      const Eigen::Vector3d& f_upper,
+      const Eigen::Vector3d& f_lower,
       bool blocking) override;
   MotionStatus GetRobotMotionStatus() const override;
   Eigen::Isometry3d GetDesiredToolPose() const;
@@ -89,6 +91,10 @@ private:
                        const drake::lcmt_schunk_wsg_status *status);
 
   lcm::LCM lcm_;
+
+  // These should live inside RBT..
+  Eigen::VectorXd v_upper_;
+  Eigen::VectorXd v_lower_;
 
   mutable std::mutex state_lock_;
   drake::lcmt_iiwa_status iiwa_status_{};

@@ -25,16 +25,8 @@ struct PrimitiveOutput {
 
 class MotionPrimitive {
 public:
-  enum Type {
-    UNKNOWN = -1,
-    MOVE_J = 0,
-    MOVE_TOOL,
-    MOVE_TOOL_STRAIGHT_UNTIL_TOUCH,
-    HOLD_J_AND_APPLY_FORCE
-  };
-
   MotionPrimitive(const std::string &name, const RigidBodyTree<double> *robot,
-                  Type type);
+      const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l);
 
   virtual ~MotionPrimitive() {
     std::cout << "[" << get_name() << "] exiting.\n";
@@ -90,15 +82,13 @@ protected:
   virtual MotionStatus ComputeStatus(const RobotState &state) const = 0;
   virtual void DoInitialize(const RobotState &) {}
   virtual void DoControl(const RobotState &, PrimitiveOutput *) const {}
-  Type get_type() const { return type_; }
 
 private:
   const RigidBodyTree<double> &robot_;
-  Eigen::VectorXd v_upper_{};
-  Eigen::VectorXd v_lower_{};
+  const Eigen::VectorXd v_upper_;
+  const Eigen::VectorXd v_lower_;
 
   std::string name_{};
-  const Type type_{UNKNOWN};
   double start_time_{0};
   bool init_{false};
 };
@@ -107,10 +97,12 @@ class MoveJoint : public MotionPrimitive {
 public:
   // Traj is exactly duration long.
   MoveJoint(const std::string &name, const RigidBodyTree<double> *robot,
+            const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
             const Eigen::VectorXd &q0, const Eigen::VectorXd &q1,
             double duration);
 
   MoveJoint(const std::string &name, const RigidBodyTree<double> *robot,
+            const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
             const Eigen::VectorXd &q0,
             const std::vector<Eigen::VectorXd> &q_des,
             const std::vector<double> &duration);
@@ -118,6 +110,7 @@ public:
   // Traj duration will be determined by a line search, which would
   // satisfy the velocity and acceleration constraints.
   MoveJoint(const std::string &name, const RigidBodyTree<double> *robot,
+            const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
             const Eigen::VectorXd &q0, const Eigen::VectorXd &q1);
 
   void DoControl(const RobotState &state, PrimitiveOutput *output)
@@ -155,9 +148,9 @@ public:
 
 protected:
   MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
+           const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
            const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-           MotionPrimitive::Type type,
-           const Eigen::Vector6d& F_thresh);
+           const Eigen::Vector6d& F_upper, const Eigen::Vector6d& F_lower);
 
   void DoInitialize(const RobotState &state) override;
   void DoControl(const RobotState &state, PrimitiveOutput *output) const override;
@@ -169,11 +162,15 @@ protected:
   const RigidBodyFrame<double> &get_frame_T() const { return frame_T_; }
   bool is_stuck() const { return is_stuck_; }
 
-  const Eigen::Vector6d& get_F_thresh() const { return F_thresh_; }
+  const Eigen::Vector6d& get_F_upper() const { return F_upper_; }
+  const Eigen::Vector6d& get_F_lower() const { return F_lower_; }
   bool is_F_over_thresh(const Eigen::Vector6d& F) const;
 
 private:
-  const Eigen::Vector6d F_thresh_;
+  // 6d wrench threshhold in the world frame applied at the tool frame.
+  const Eigen::Vector6d F_upper_;
+  const Eigen::Vector6d F_lower_;
+
   const RigidBodyFrame<double> frame_T_;
   KinematicsCache<double> cache_;
   bool is_stuck_{false};
@@ -190,10 +187,13 @@ class MoveToolStraightUntilTouch : public MoveTool {
 public:
   MoveToolStraightUntilTouch(const std::string &name,
                              const RigidBodyTree<double> *robot,
+                             const Eigen::VectorXd& v_u,
+                             const Eigen::VectorXd& v_l,
                              const RigidBodyFrame<double> *frame_T,
                              const Eigen::VectorXd &q0,
                              const Eigen::Vector3d &dir, double vel,
-                             const Eigen::Vector6d& F_thresh);
+                             const Eigen::Vector6d& F_upper,
+                             const Eigen::Vector6d& F_lower);
 
   Eigen::Isometry3d
   ComputeDesiredToolInWorld(const RobotState &state) const override;
@@ -216,6 +216,7 @@ class HoldPositionAndApplyForce : public MotionPrimitive {
 public:
   HoldPositionAndApplyForce(const std::string &name,
                             const RigidBodyTree<double> *robot,
+                            const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
                             const RigidBodyFrame<double> *frame_T);
 
   void Update(const RobotState &state) override;
@@ -243,10 +244,12 @@ class MoveToolFollowTraj : public MoveTool {
 public:
   MoveToolFollowTraj(
       const std::string &name, const RigidBodyTree<double> *robot,
+      const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
       const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
       const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
       //const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-      const Eigen::Vector6d& F_thresh);
+      const Eigen::Vector6d& F_upper,
+      const Eigen::Vector6d& F_lower);
 
   void set_X_WT_traj(
       const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj) {
