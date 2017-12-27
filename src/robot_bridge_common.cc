@@ -156,9 +156,6 @@ bool InverseKinTraj(
   auto result = inverseKinTrajSimple(robot_ptr, T, q0, q_norm, constraint_array,
                                      ikoptions);
 
-  for (const auto &q : result.q_sol)
-    std::cout << q.transpose() << "\n";
-
   int ctr = 0;
   for (const auto &info : result.info) {
     if (info >= 10) {

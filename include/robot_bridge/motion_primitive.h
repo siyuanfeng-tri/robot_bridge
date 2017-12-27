@@ -1,5 +1,8 @@
 #pragma once
 
+#include <iomanip>
+#include <iostream>
+
 #include "robot_bridge/robot_bridge_common.h"
 
 #include "drake/common/eigen_types.h"
@@ -45,8 +48,9 @@ public:
 
     DoInitialize(state);
 
-    std::cout << "[" << get_name() << "] initialized at " << state.get_time()
-              << "\n";
+    std::cout << "[" << get_name() << "] initialized at "
+              << std::fixed << std::setprecision(9)
+              << state.get_time() << "\n";
   }
 
   void Control(const RobotState &state, PrimitiveOutput *output) const {
