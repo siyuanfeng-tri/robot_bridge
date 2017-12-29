@@ -5,8 +5,6 @@
 
 #include "drake/common/text_logging.h"
 #include "drake/multibody/ik_options.h"
-#include "drake/multibody/joints/floating_base_types.h"
-#include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_constraint.h"
 #include "drake/multibody/rigid_body_ik.h"
 
@@ -37,12 +35,14 @@ void JacobianIk::Setup() {
   q_upper_ = robot_->joint_limit_max;
   v_lower_ = Eigen::VectorXd::Constant(num_joints, -2);
   v_upper_ = Eigen::VectorXd::Constant(num_joints, 2);
-  vd_lower_ = Eigen::VectorXd::Constant(num_joints, -20);
-  vd_upper_ = Eigen::VectorXd::Constant(num_joints, 20);
+  vd_lower_ = Eigen::VectorXd::Constant(num_joints, -40);
+  vd_upper_ = Eigen::VectorXd::Constant(num_joints, 40);
   unconstrained_dof_v_limit_ = Eigen::VectorXd::Constant(1, 0.6);
 
   identity_ = Eigen::MatrixXd::Identity(num_joints, num_joints);
   zero_ = Eigen::VectorXd::Zero(num_joints);
+
+  DRAKE_DEMAND((q_upper_.array() >= q_lower_.array()).all());
 }
 
 void JacobianIk::SetJointSpeedLimit(const Eigen::VectorXd &v_upper,
@@ -51,46 +51,30 @@ void JacobianIk::SetJointSpeedLimit(const Eigen::VectorXd &v_upper,
   DRAKE_DEMAND(v_lower.size() == v_lower_.size());
   v_lower_ = v_lower;
   v_upper_ = v_upper;
+
+  DRAKE_DEMAND((v_upper_.array() >= v_lower_.array()).all());
 }
 
-void JacobianIk::SetJointAccelerationLimit(
-    const Eigen::VectorXd &vd_upper,
-    const Eigen::VectorXd &vd_lower) {
+void JacobianIk::SetJointAccelerationLimit(const Eigen::VectorXd &vd_upper,
+                                           const Eigen::VectorXd &vd_lower) {
   DRAKE_DEMAND(vd_upper.size() == vd_lower.size());
   DRAKE_DEMAND(vd_lower.size() == vd_lower_.size());
   vd_lower_ = vd_lower;
   vd_upper_ = vd_upper;
-}
 
+  DRAKE_DEMAND((vd_upper_.array() >= vd_lower_.array()).all());
+}
 
 JacobianIk::JacobianIk(const RigidBodyTree<double> *robot) : robot_{robot} {
   Setup();
 }
 
-JacobianIk::JacobianIk(const std::string &model_path,
-                       const Eigen::Isometry3d &base_to_world) {
-  auto base_frame = std::allocate_shared<RigidBodyFrame<double>>(
-      Eigen::aligned_allocator<RigidBodyFrame<double>>(), "world", nullptr,
-      base_to_world);
-
-  owned_robot_ = std::make_unique<RigidBodyTree<double>>();
-  robot_ = owned_robot_.get();
-
-  drake::parsers::urdf::AddModelInstanceFromUrdfFile(
-      model_path, drake::multibody::joints::kFixed, base_frame, owned_robot_.get());
-
-  Setup();
-}
-
 Eigen::VectorXd JacobianIk::ComputeDofVelocity(
     const KinematicsCache<double> &cache,
-    const std::vector<std::pair<Capsule, Capsule>>& collisions,
+    const std::vector<std::pair<Capsule, Capsule>> &collisions,
     const RigidBodyFrame<double> &frame_E, const Eigen::Vector6d &V_WE,
-    double dt,
-    const Eigen::VectorXd &q_nominal,
-    const Eigen::VectorXd &v_last,
-    bool *is_stuck,
-    const Eigen::Vector6d &gain_E) const {
+    double dt, const Eigen::VectorXd &q_nominal, const Eigen::VectorXd &v_last,
+    bool *is_stuck, const Eigen::Vector6d &gain_E) const {
   DRAKE_DEMAND(q_nominal.size() == robot_->get_num_positions());
   DRAKE_DEMAND(dt > 0);
 
@@ -140,30 +124,27 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
       drake::Vector1<double>(1), drake::Vector1<double>(V_WE_E_mag), alpha);
 
   // Add a small regularization.
-  auto posture_cost =
-      prog.AddQuadraticCost(1e-3 * identity_ * dt * dt,
-                            1e-3 * (cache.getQ() - q_nominal) * dt,
-                            1e-3 * (cache.getQ() - q_nominal).squaredNorm(), v);
+  auto posture_cost = prog.AddQuadraticCost(
+      1e-3 * identity_ * dt * dt, 1e-3 * (cache.getQ() - q_nominal) * dt,
+      1e-3 * (cache.getQ() - q_nominal).squaredNorm(), v);
 
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(J_WE_E, Eigen::ComputeFullV);
 
   // Add v constraint.
   prog.AddBoundingBoxConstraint(v_lower_, v_upper_, v);
 
-  /*
   // Add vd constraint.
   prog.AddLinearConstraint(identity_,
                            vd_lower_ * dt + v_last,
                            vd_upper_ * dt + v_last,
                            v);
-  */
 
   // Add constrained the unconstrained dof's velocity to be small, which is used
   // to fullfil the regularization cost.
   for (int i = num_cart_constraints; i < svd.matrixV().cols(); i++) {
     prog.AddLinearConstraint(svd.matrixV().col(i).transpose(),
-        -unconstrained_dof_v_limit_,
-        unconstrained_dof_v_limit_, v);
+                             -unconstrained_dof_v_limit_,
+                             unconstrained_dof_v_limit_, v);
   }
 
   // Add q upper and lower joint limit.
@@ -171,16 +152,18 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
                            q_upper_ - cache.getQ(), v);
 
   // Do the collision constraints.
-  for (const std::pair<Capsule, Capsule>& col_pair : collisions) {
+  for (const std::pair<Capsule, Capsule> &col_pair : collisions) {
     Eigen::Vector3d p0, p1;
-    const Capsule& c0 = col_pair.first;
-    const Capsule& c1 = col_pair.second;
+    const Capsule &c0 = col_pair.first;
+    const Capsule &c1 = col_pair.second;
 
     // Computes the closest points in world frame.
     c0.GetClosestPointsOnAxis(c1, &p0, &p1);
     // Transform p0 and p1 into their respective body frames.
-    Eigen::Isometry3d X0(Eigen::Translation3d(robot_->CalcBodyPoseInWorldFrame(cache, c0.get_body()).inverse() * p0));
-    Eigen::Isometry3d X1(Eigen::Translation3d(robot_->CalcBodyPoseInWorldFrame(cache, c1.get_body()).inverse() * p1));
+    Eigen::Isometry3d X0(Eigen::Translation3d(
+        robot_->CalcBodyPoseInWorldFrame(cache, c0.get_body()).inverse() * p0));
+    Eigen::Isometry3d X1(Eigen::Translation3d(
+        robot_->CalcBodyPoseInWorldFrame(cache, c1.get_body()).inverse() * p1));
 
     auto J0 = robot_->CalcFrameSpatialVelocityJacobianInWorldFrame(
         cache, c0.get_body(), X0);
@@ -191,7 +174,8 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
 
     auto AA = Rinv * (J1.bottomRows(3) - J0.bottomRows(3)) * dt;
     Eigen::Vector3d bb = Rinv * (p1 - p0);
-    drake::Vector1<double> min_dist(-(bb[2] - c0.get_radius() - c1.get_radius()));
+    drake::Vector1<double> min_dist(
+        -(bb[2] - c0.get_radius() - c1.get_radius()));
     drake::Vector1<double> max_dist(1e6);
     prog.AddLinearConstraint(AA.row(2), min_dist, max_dist, v);
   }
@@ -210,7 +194,8 @@ Eigen::VectorXd JacobianIk::ComputeDofVelocity(
   // Not tracking the desired vel norm, and computed vel is small.
   *is_stuck = cost(0) > 5 && prog.GetSolution(alpha)[0] <= 1e-2;
 
-  // std::cout << "err_cost: " << cost(0) << ", " << prog.GetSolution(alpha).norm() << "\n";
+  // std::cout << "err_cost: " << cost(0) << ", " <<
+  // prog.GetSolution(alpha).norm() << "\n";
 
   posture_cost.constraint()->Eval(prog.GetSolution(v), cost);
   // std::cout << "posture_cost: " << cost(0) << "\n";
@@ -245,7 +230,8 @@ bool JacobianIk::Plan(const Eigen::VectorXd &q0,
     Eigen::Vector6d V_WE_d =
         ComputePoseDiffInWorldFrame(pose_now, pose_traj[t]) / dt;
 
-    v = ComputeDofVelocity(cache, {}, frame_E, V_WE_d, dt, q_nominal, v, &is_stuck);
+    v = ComputeDofVelocity(cache, {}, frame_E, V_WE_d, dt, q_nominal, v,
+                           &is_stuck);
 
     q_now += v * dt;
     time_now = times[t];

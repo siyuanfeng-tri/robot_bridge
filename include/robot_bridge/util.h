@@ -1,7 +1,9 @@
 #pragma once
 
-#include <time.h>
 #include <Eigen/Core>
+#include <time.h>
+
+namespace robot_bridge {
 
 inline double get_system_time() {
   struct timespec the_tp;
@@ -21,9 +23,9 @@ template <typename T> const T &clamp(const T &val, const T &lo, const T &hi) {
 }
 
 template <typename T>
-T bilinear_interp(const T x, const T y,
-    const T x1, const T x2, const T y1, const T y2,
-    const T Q11, const T Q12, const T Q21, const T Q22) {
+T bilinear_interp(const T x, const T y, const T x1, const T x2, const T y1,
+                  const T y2, const T Q11, const T Q12, const T Q21,
+                  const T Q22) {
   Eigen::Matrix<T, 2, 2> Q;
   Eigen::Matrix<T, 1, 2> X;
   Eigen::Matrix<T, 2, 1> Y;
@@ -34,3 +36,5 @@ T bilinear_interp(const T x, const T y,
 
   return (X * Q * Y)(0, 0) / (x2 - x1) / (y2 - y1);
 }
+
+}  // namespace robot_bridge

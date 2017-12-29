@@ -40,63 +40,51 @@ public:
   MotionStatus MoveJointDegrees(const Eigen::VectorXd &q, bool blocking);
 
   // "MoveL". Linear movement in cartesian space.
-  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                        double duration,
-                        const Eigen::Vector6d& F_upper,
-                        const Eigen::Vector6d& F_lower,
+  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee, double duration,
+                        const Eigen::Vector6d &F_upper,
+                        const Eigen::Vector6d &F_lower, bool blocking) {
+    return MoveToolAndApplyWrench(tgt_pose_ee, Eigen::Vector6d::Ones(),
+                                  duration, F_upper, F_lower,
+                                  Eigen::Vector6d::Zero(), blocking);
+  }
+
+  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee, double duration,
                         bool blocking) {
-    return MoveToolAndApplyWrench(
-        tgt_pose_ee, Eigen::Vector6d::Ones(), duration,
-        F_upper, F_lower, Eigen::Vector6d::Zero(), blocking);
+    return MoveToolAndApplyWrench(tgt_pose_ee, Eigen::Vector6d::Ones(),
+                                  duration, Eigen::Vector6d::Constant(1000),
+                                  Eigen::Vector6d::Constant(-1000),
+                                  Eigen::Vector6d::Zero(), blocking);
   }
 
   MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                        double duration,
+                        const Eigen::Vector6d &gains_E, double duration,
                         bool blocking) {
     return MoveToolAndApplyWrench(
-        tgt_pose_ee, Eigen::Vector6d::Ones(), duration,
-        Eigen::Vector6d::Constant(1000),
-        Eigen::Vector6d::Constant(-1000),
-        Eigen::Vector6d::Zero(), blocking);
+        tgt_pose_ee, gains_E, duration, Eigen::Vector6d::Constant(1000),
+        Eigen::Vector6d::Constant(-1000), Eigen::Vector6d::Zero(), blocking);
   }
 
   MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                        const Eigen::Vector6d& gains_E,
-                        double duration,
-                        bool blocking) {
-    return MoveToolAndApplyWrench(
-        tgt_pose_ee, gains_E, duration,
-        Eigen::Vector6d::Constant(1000),
-        Eigen::Vector6d::Constant(-1000),
-        Eigen::Vector6d::Zero(), blocking);
+                        const Eigen::Vector6d &gains_E, double duration,
+                        const Eigen::Vector6d &F_upper,
+                        const Eigen::Vector6d &F_lower, bool blocking) {
+    return MoveToolAndApplyWrench(tgt_pose_ee, gains_E, duration, F_upper,
+                                  F_lower, Eigen::Vector6d::Zero(), blocking);
   }
 
-  MotionStatus MoveTool(const Eigen::Isometry3d &tgt_pose_ee,
-                        const Eigen::Vector6d& gains_E,
-                        double duration,
-                        const Eigen::Vector6d& F_upper,
-                        const Eigen::Vector6d& F_lower,
-                        bool blocking) {
-    return MoveToolAndApplyWrench(
-        tgt_pose_ee, gains_E, duration,
-        F_upper, F_lower, Eigen::Vector6d::Zero(), blocking);
-  }
-
-  virtual MotionStatus MoveToolAndApplyWrench(
-      const Eigen::Isometry3d &tgt_pose_ee,
-      const Eigen::Vector6d& gains_E,
-      double duration,
-      const Eigen::Vector6d& F_upper,
-      const Eigen::Vector6d& F_lower,
-      const Eigen::Vector6d& F,
-      bool blocking) = 0;
+  virtual MotionStatus
+  MoveToolAndApplyWrench(const Eigen::Isometry3d &tgt_pose_ee,
+                         const Eigen::Vector6d &gains_E, double duration,
+                         const Eigen::Vector6d &F_upper,
+                         const Eigen::Vector6d &F_lower,
+                         const Eigen::Vector6d &F, bool blocking) = 0;
   virtual void UpdateToolGoal(const Eigen::Isometry3d &world_update) = 0;
 
-  virtual MotionStatus MoveStraightUntilTouch(
-      const Eigen::Vector3d &dir_W, double vel,
-      const Eigen::Vector3d& f_upper,
-      const Eigen::Vector3d& f_lower,
-      bool blocking) = 0;
+  virtual MotionStatus MoveStraightUntilTouch(const Eigen::Vector3d &dir_W,
+                                              double vel,
+                                              const Eigen::Vector3d &f_upper,
+                                              const Eigen::Vector3d &f_lower,
+                                              bool blocking) = 0;
 
   // Controller status querry.
   virtual Eigen::Isometry3d GetDesiredToolPose() const = 0;
@@ -126,7 +114,7 @@ public:
   // Returns false if q_rad is out of limit defined by robot_.
   bool CheckJointLimitRadians(const Eigen::VectorXd &q_rad) const;
 
-  virtual void AddCollisionPair(const Capsule& c0, const Capsule& c1) = 0;
+  virtual void AddCollisionPair(const Capsule &c0, const Capsule &c1) = 0;
 
 private:
   const RigidBodyTree<double> &robot_;

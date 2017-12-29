@@ -73,7 +73,7 @@ void IiwaController::Stop() {
   control_thread_.join();
 }
 
-void IiwaController::AddCollisionPair(const Capsule& c0, const Capsule& c1) {
+void IiwaController::AddCollisionPair(const Capsule &c0, const Capsule &c1) {
   collisions_.push_back(std::pair<Capsule, Capsule>(c0, c1));
 }
 
@@ -114,19 +114,14 @@ MotionStatus IiwaController::MoveJointRadians(const Eigen::VectorXd &q,
   return GetRobotMotionStatus();
 }
 
-MotionStatus
-IiwaController::MoveToolAndApplyWrench(
-    const Eigen::Isometry3d &tgt_pose_ee,
-    const Eigen::Vector6d& gains_E,
-    double duration,
-    const Eigen::Vector6d& F_upper,
-    const Eigen::Vector6d& F_lower,
-    const Eigen::Vector6d& F,
-    bool blocking) {
+MotionStatus IiwaController::MoveToolAndApplyWrench(
+    const Eigen::Isometry3d &tgt_pose_ee, const Eigen::Vector6d &gains_E,
+    double duration, const Eigen::Vector6d &F_upper,
+    const Eigen::Vector6d &F_lower, const Eigen::Vector6d &F, bool blocking) {
 
   PrimitiveOutput cur_output;
   GetPrimitiveOutput(&cur_output);
-  const RigidBodyTree<double>& robot = get_robot();
+  const RigidBodyTree<double> &robot = get_robot();
 
   // Compute the commanded tool frame pose from the commanded q.
   KinematicsCache<double> tmp_cache = robot.CreateKinematicsCache();
@@ -147,12 +142,11 @@ IiwaController::MoveToolAndApplyWrench(
       0, 0, 0, duration);
 
   auto new_plan = new class MoveToolFollowTraj(
-      "MoveToolFollowTraj", &get_robot(), v_upper_, v_lower_,
-      &get_tool_frame(), cur_output.q_cmd,
-      traj, F_upper, F_lower);
+      "MoveToolFollowTraj", &get_robot(), v_upper_, v_lower_, &get_tool_frame(),
+      cur_output.q_cmd, traj, F_upper, F_lower);
   new_plan->set_applied_F(F);
   new_plan->set_tool_gain(gains_E);
-  for (const auto& collision_pair : collisions_)
+  for (const auto &collision_pair : collisions_)
     new_plan->AddCollisionPair(collision_pair.first, collision_pair.second);
   SwapPlan(std::unique_ptr<MotionPrimitive>(new_plan));
 
@@ -162,10 +156,8 @@ IiwaController::MoveToolAndApplyWrench(
 }
 
 MotionStatus IiwaController::MoveStraightUntilTouch(
-    const Eigen::Vector3d &dir_W, double vel,
-    const Eigen::Vector3d& f_upper,
-    const Eigen::Vector3d& f_lower,
-    bool blocking) {
+    const Eigen::Vector3d &dir_W, double vel, const Eigen::Vector3d &f_upper,
+    const Eigen::Vector3d &f_lower, bool blocking) {
   PrimitiveOutput cur_output;
   GetPrimitiveOutput(&cur_output);
 
@@ -296,8 +288,8 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des, double duration) {
   GetPrimitiveOutput(&cur_output);
 
   std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
-                    cur_output.q_cmd, q_des, duration));
+      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_, cur_output.q_cmd,
+                    q_des, duration));
   SwapPlan(std::move(new_plan));
 }
 
@@ -307,8 +299,8 @@ void IiwaController::MoveJ(const std::vector<Eigen::VectorXd> &q_des,
   GetPrimitiveOutput(&cur_output);
 
   std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
-                    cur_output.q_cmd, q_des, duration));
+      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_, cur_output.q_cmd,
+                    q_des, duration));
   SwapPlan(std::move(new_plan));
 }
 
@@ -316,9 +308,8 @@ void IiwaController::MoveJ(const Eigen::VectorXd &q_des) {
   PrimitiveOutput cur_output;
   GetPrimitiveOutput(&cur_output);
 
-  std::unique_ptr<MotionPrimitive> new_plan(
-      new MoveJoint("MoveJ", &get_robot(), v_upper_, v_lower_,
-                    cur_output.q_cmd, q_des));
+  std::unique_ptr<MotionPrimitive> new_plan(new MoveJoint(
+      "MoveJ", &get_robot(), v_upper_, v_lower_, cur_output.q_cmd, q_des));
   SwapPlan(std::move(new_plan));
 }
 
@@ -423,9 +414,8 @@ void IiwaController::ControlLoop() {
   }
 
   // Make initial plan to go to q1.
-  auto plan = std::unique_ptr<MotionPrimitive>(
-      new MoveJoint("hold_q", &robot, v_upper_, v_lower_,
-                    state.get_q(), state.get_q(), 0.1));
+  auto plan = std::unique_ptr<MotionPrimitive>(new MoveJoint(
+      "hold_q", &robot, v_upper_, v_lower_, state.get_q(), state.get_q(), 0.1));
   SwapPlan(std::move(plan));
   {
     std::lock_guard<std::mutex> guard(motion_lock_);

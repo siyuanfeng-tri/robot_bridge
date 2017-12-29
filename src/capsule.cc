@@ -5,14 +5,12 @@
 
 namespace robot_bridge {
 
-Capsule::Capsule(const RigidBodyFrame<double>& X_BC,
-                 double length,
+Capsule::Capsule(const RigidBodyFrame<double> &X_BC, double length,
                  double radius)
-    : X_BC_(X_BC), length_(length), radius_(radius) {
-}
+    : X_BC_(X_BC), length_(length), radius_(radius) {}
 
-Eigen::Vector3d Capsule::GetClosestPointOnAxis(
-    const Eigen::Vector3d& pt) const {
+Eigen::Vector3d
+Capsule::GetClosestPointOnAxis(const Eigen::Vector3d &pt) const {
   Eigen::Vector3d mid2point = pt - X_WC_.translation();
   Eigen::Vector3d dir = X_WC_.linear().col(2);
   double proj_len = mid2point.dot(dir);
@@ -20,9 +18,9 @@ Eigen::Vector3d Capsule::GetClosestPointOnAxis(
   return dir * proj_len + X_WC_.translation();
 }
 
-Eigen::Matrix3d Capsule::ComputeEscapeFrame(
-    const Eigen::Vector3d& closest,
-    const Eigen::Vector3d& point) const {
+Eigen::Matrix3d
+Capsule::ComputeEscapeFrame(const Eigen::Vector3d &closest,
+                            const Eigen::Vector3d &point) const {
   Eigen::Matrix3d R;
   Eigen::Vector3d Rx, Ry, Rz;
 
@@ -30,8 +28,7 @@ Eigen::Matrix3d Capsule::ComputeEscapeFrame(
   if (Rz.norm() < 1e-5) {
     std::cerr << "getEscapeFrame point is on dir\n";
     Rz = X_WC_.linear().col(0);
-  }
-  else {
+  } else {
     Rz.normalize();
   }
   Rx = X_WC_.linear().col(2);
@@ -43,9 +40,9 @@ Eigen::Matrix3d Capsule::ComputeEscapeFrame(
   return R;
 }
 
-double Capsule::GetClosestPointsOnAxis(const Capsule& other,
-    Eigen::Vector3d* my_point,
-    Eigen::Vector3d* other_point) const {
+double Capsule::GetClosestPointsOnAxis(const Capsule &other,
+                                       Eigen::Vector3d *my_point,
+                                       Eigen::Vector3d *other_point) const {
   // http://geomalgorithms.com/a07-_distance.html
   Eigen::Vector3d u = X_WC_.linear().col(2);
   Eigen::Vector3d v = other.X_WC_.linear().col(2);

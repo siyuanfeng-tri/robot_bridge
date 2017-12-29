@@ -7,8 +7,6 @@
 
 namespace robot_bridge {
 
-const std::string kEEName("iiwa_link_7");
-
 RobotState::RobotState(const RigidBodyTree<double> *iiwa,
                        const RigidBodyFrame<double> *frame_T)
     : iiwa_(iiwa), frame_T_(frame_T), cache_(iiwa_->CreateKinematicsCache()),
@@ -94,13 +92,12 @@ Eigen::Matrix<double, 7, 1> pose_to_vec(const Eigen::Isometry3d &pose) {
   return ret;
 }
 
-bool InverseKinTraj(
-    const RigidBodyTree<double> &robot,
-    const RigidBodyFrame<double> &frame,
-    const std::vector<Eigen::Isometry3d>& poses,
-    const std::vector<double>& times,
-    const Eigen::VectorXd& q_guess,
-    std::vector<Eigen::VectorXd>* result_q) {
+bool InverseKinTraj(const RigidBodyTree<double> &robot,
+                    const RigidBodyFrame<double> &frame,
+                    const std::vector<Eigen::Isometry3d> &poses,
+                    const std::vector<double> &times,
+                    const Eigen::VectorXd &q_guess,
+                    std::vector<Eigen::VectorXd> *result_q) {
   std::vector<RigidBodyConstraint *> constraint_array;
   std::vector<std::unique_ptr<RigidBodyConstraint>> constraint_array_real;
 
@@ -113,7 +110,7 @@ bool InverseKinTraj(
   const double rot_tol = 0.001;
 
   for (size_t i = 0; i < poses.size(); i++) {
-    const Eigen::Isometry3d& X_WT = poses[i];
+    const Eigen::Isometry3d &X_WT = poses[i];
     const double time = times[i];
     if (i > 0 && time <= times[i - 1])
       return false;
@@ -131,11 +128,10 @@ bool InverseKinTraj(
     constraint_array.push_back(constraint_array_real.back().get());
 
     // Orientation constraint
-    constraint_array_real.emplace_back(
-        std::make_unique<WorldQuatConstraint>(
-            robot_ptr, frame.get_rigid_body().get_body_index(),
-            drake::math::rotmat2quat(X_WE.linear()), rot_tol,
-            Eigen::Vector2d(time, time)));
+    constraint_array_real.emplace_back(std::make_unique<WorldQuatConstraint>(
+        robot_ptr, frame.get_rigid_body().get_body_index(),
+        drake::math::rotmat2quat(X_WE.linear()), rot_tol,
+        Eigen::Vector2d(time, time)));
     constraint_array.push_back(constraint_array_real.back().get());
   }
 

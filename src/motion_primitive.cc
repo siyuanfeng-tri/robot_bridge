@@ -7,8 +7,8 @@ namespace robot_bridge {
 
 MotionPrimitive::MotionPrimitive(const std::string &name,
                                  const RigidBodyTree<double> *robot,
-                                 const Eigen::VectorXd& v_u,
-                                 const Eigen::VectorXd& v_l)
+                                 const Eigen::VectorXd &v_u,
+                                 const Eigen::VectorXd &v_l)
     : robot_(*robot), v_upper_(v_u), v_lower_(v_l), name_(name) {
   if (v_upper_.size() != robot_.get_num_velocities() ||
       v_lower_.size() != robot_.get_num_velocities() ||
@@ -20,7 +20,7 @@ MotionPrimitive::MotionPrimitive(const std::string &name,
 ///////////////////////////////////////////////////////////
 MoveJoint::MoveJoint(const std::string &name,
                      const RigidBodyTree<double> *robot,
-                     const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+                     const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
                      const Eigen::VectorXd &q0, const Eigen::VectorXd &q1,
                      double duration)
     : MotionPrimitive(name, robot, v_u, v_l) {
@@ -35,7 +35,7 @@ MoveJoint::MoveJoint(const std::string &name,
 
 MoveJoint::MoveJoint(const std::string &name,
                      const RigidBodyTree<double> *robot,
-                     const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+                     const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
                      const Eigen::VectorXd &q0,
                      const std::vector<Eigen::VectorXd> &q_des,
                      const std::vector<double> &duration)
@@ -56,7 +56,7 @@ MoveJoint::MoveJoint(const std::string &name,
 
 MoveJoint::MoveJoint(const std::string &name,
                      const RigidBodyTree<double> *robot,
-                     const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+                     const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
                      const Eigen::VectorXd &q0, const Eigen::VectorXd &q1)
     : MotionPrimitive(name, robot, v_u, v_l) {
   DRAKE_DEMAND(q0.size() == q1.size());
@@ -70,7 +70,8 @@ MoveJoint::MoveJoint(const std::string &name,
   trajd_ = traj_.derivative();
 }
 
-void MoveJoint::DoControl(const RobotState &state, PrimitiveOutput *output) const {
+void MoveJoint::DoControl(const RobotState &state,
+                          PrimitiveOutput *output) const {
   const double interp_time = get_in_state_time(state);
   output->q_cmd = traj_.value(interp_time);
 }
@@ -85,14 +86,14 @@ MotionStatus MoveJoint::ComputeStatus(const RobotState &state) const {
 
 ///////////////////////////////////////////////////////////
 MoveTool::MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
-                   const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+                   const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
                    const RigidBodyFrame<double> *frame_T,
-                   const Eigen::VectorXd &q0,
-                   const Eigen::Vector6d& F_upper,
-                   const Eigen::Vector6d& F_lower)
-    : MotionPrimitive(name, robot, v_u, v_l), F_upper_(F_upper), F_lower_(F_lower),
-      frame_T_(*frame_T), cache_(robot->CreateKinematicsCache()),
-      jaco_planner_(robot), q_norm_(robot->getZeroConfiguration()) {
+                   const Eigen::VectorXd &q0, const Eigen::Vector6d &F_upper,
+                   const Eigen::Vector6d &F_lower)
+    : MotionPrimitive(name, robot, v_u, v_l), F_upper_(F_upper),
+      F_lower_(F_lower), frame_T_(*frame_T),
+      cache_(robot->CreateKinematicsCache()), jaco_planner_(robot),
+      q_norm_(robot->getZeroConfiguration()) {
   cache_.initialize(q0, Eigen::VectorXd::Zero(robot->get_num_velocities()));
   get_robot().doKinematics(cache_);
 
@@ -104,17 +105,19 @@ MoveTool::MoveTool(const std::string &name, const RigidBodyTree<double> *robot,
   }
 }
 
-bool MoveTool::is_F_over_thresh(const Eigen::Vector6d& F) const {
+bool MoveTool::is_F_over_thresh(const Eigen::Vector6d &F) const {
   return (F.array() > F_upper_.array()).any() |
          (F.array() < F_lower_.array()).any();
 }
 
-void MoveTool::AddCollisionPair(const Capsule& c0, const Capsule& c1) {
+void MoveTool::AddCollisionPair(const Capsule &c0, const Capsule &c1) {
   collisions_.push_back(std::pair<Capsule, Capsule>(c0, c1));
-  auto& pair = collisions_.back();
-  const RigidBodyTree<double>& robot = get_robot();
-  pair.first.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.first.get_frame()));
-  pair.second.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.second.get_frame()));
+  auto &pair = collisions_.back();
+  const RigidBodyTree<double> &robot = get_robot();
+  pair.first.set_pose(
+      robot.CalcFramePoseInWorldFrame(cache_, pair.first.get_frame()));
+  pair.second.set_pose(
+      robot.CalcFramePoseInWorldFrame(cache_, pair.second.get_frame()));
 }
 
 void MoveTool::DoInitialize(const RobotState &state) {
@@ -122,10 +125,9 @@ void MoveTool::DoInitialize(const RobotState &state) {
 }
 
 void MoveTool::Update(const RobotState &state) {
-  const RigidBodyTree<double>& robot = get_robot();
+  const RigidBodyTree<double> &robot = get_robot();
   Eigen::Isometry3d X_WT_d = ComputeDesiredToolInWorld(state);
-  Eigen::Isometry3d X_WT =
-      robot.CalcFramePoseInWorldFrame(cache_, frame_T_);
+  Eigen::Isometry3d X_WT = robot.CalcFramePoseInWorldFrame(cache_, frame_T_);
 
   const double dt = state.get_time() - last_time_;
   last_time_ = state.get_time();
@@ -137,20 +139,18 @@ void MoveTool::Update(const RobotState &state) {
       jaco_planner_.ComputePoseDiffInWorldFrame(X_WT, X_WT_d) / dt;
 
   Eigen::VectorXd v = jaco_planner_.ComputeDofVelocity(
-      cache_, collisions_,
-      frame_T_, V_WT_d,
-      dt,
-      q_norm_, cache_.getV(),
-      &is_stuck_,
-      gain_T_);
+      cache_, collisions_, frame_T_, V_WT_d, dt, q_norm_, cache_.getV(),
+      &is_stuck_, gain_T_);
 
   // Integrate ik's fake state.
   cache_.initialize(cache_.getQ() + v * dt, v);
   robot.doKinematics(cache_);
 
-  for (auto& pair : collisions_) {
-    pair.first.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.first.get_frame()));
-    pair.second.set_pose(robot.CalcFramePoseInWorldFrame(cache_, pair.second.get_frame()));
+  for (auto &pair : collisions_) {
+    pair.first.set_pose(
+        robot.CalcFramePoseInWorldFrame(cache_, pair.first.get_frame()));
+    pair.second.set_pose(
+        robot.CalcFramePoseInWorldFrame(cache_, pair.second.get_frame()));
   }
 }
 
@@ -162,11 +162,10 @@ void MoveTool::DoControl(const RobotState &, PrimitiveOutput *output) const {
 ///////////////////////////////////////////////////////////
 MoveToolStraightUntilTouch::MoveToolStraightUntilTouch(
     const std::string &name, const RigidBodyTree<double> *robot,
-    const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+    const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
     const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
-    const Eigen::Vector3d &dir, double vel,
-    const Eigen::Vector6d& F_upper,
-    const Eigen::Vector6d& F_lower)
+    const Eigen::Vector3d &dir, double vel, const Eigen::Vector6d &F_upper,
+    const Eigen::Vector6d &F_lower)
     : MoveTool(name, robot, v_u, v_l, frame_T, q0, F_upper, F_lower),
       X_WT0_{get_X_WT_ik()}, dir_{dir.normalized()}, vel_{vel} {}
 
@@ -184,8 +183,7 @@ Eigen::Isometry3d MoveToolStraightUntilTouch::ComputeDesiredToolInWorld(
   Eigen::Isometry3d ret = X_WT0_;
   if (!stopped_) {
     ret.translation() += dir_ * vel_ * get_in_state_time(state);
-  }
-  else {
+  } else {
     ret.translation() = X_WT_stopped_.translation();
   }
 
@@ -203,7 +201,7 @@ MoveToolStraightUntilTouch::ComputeStatus(const RobotState &state) const {
 ///////////////////////////////////////////////////////////
 HoldPositionAndApplyForce::HoldPositionAndApplyForce(
     const std::string &name, const RigidBodyTree<double> *robot,
-    const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+    const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
     const RigidBodyFrame<double> *frame_T)
     : MotionPrimitive(name, robot, v_u, v_l), frame_T_(*frame_T),
       cache_(robot->CreateKinematicsCache()) {}
@@ -221,8 +219,8 @@ void HoldPositionAndApplyForce::DoInitialize(const RobotState &state) {
   X_WT0_ = get_robot().CalcFramePoseInWorldFrame(tmp, frame_T_);
 }
 
-void HoldPositionAndApplyForce::DoControl(
-    const RobotState &, PrimitiveOutput *output) const {
+void HoldPositionAndApplyForce::DoControl(const RobotState &,
+                                          PrimitiveOutput *output) const {
   const RigidBodyTree<double> &robot = get_robot();
   output->q_cmd = q0_;
   output->X_WT_cmd = X_WT0_;
@@ -243,12 +241,11 @@ HoldPositionAndApplyForce::ComputeStatus(const RobotState &state) const {
 ///////////////////////////////////////////////////////////
 MoveToolFollowTraj::MoveToolFollowTraj(
     const std::string &name, const RigidBodyTree<double> *robot,
-    const Eigen::VectorXd& v_u, const Eigen::VectorXd& v_l,
+    const Eigen::VectorXd &v_u, const Eigen::VectorXd &v_l,
     const RigidBodyFrame<double> *frame_T, const Eigen::VectorXd &q0,
     const drake::manipulation::SingleSegmentCartesianTrajectory<double> &traj,
-    //const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
-    const Eigen::Vector6d& F_upper,
-    const Eigen::Vector6d& F_lower)
+    // const drake::manipulation::PiecewiseCartesianTrajectory<double> &traj,
+    const Eigen::Vector6d &F_upper, const Eigen::Vector6d &F_lower)
     : MoveTool(name, robot, v_u, v_l, frame_T, q0, F_upper, F_lower),
       X_WT_traj_(traj) {}
 
@@ -274,8 +271,7 @@ void MoveToolFollowTraj::Update(const RobotState &state) {
                                                       Eigen::Vector3d::Zero());
     */
     X_WT_traj_ = drake::manipulation::SingleSegmentCartesianTrajectory<double>(
-        X_WT0, X_WT1, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(),
-        0, 0,
+        X_WT0, X_WT1, Eigen::Vector3d::Zero(), Eigen::Vector3d::Zero(), 0, 0,
         start_time, end_time);
     stopped_ = true;
   }
@@ -312,9 +308,8 @@ void MoveToolFollowTraj::UpdateToolGoal(const RobotState &state,
 
   // this is sketchy
   auto traj = drake::manipulation::SingleSegmentCartesianTrajectory<double>(
-      X_WT, new_goal, V_WT.tail<3>(), Eigen::Vector3d::Zero(),
-      0, 0,
-      start_time, end_time);
+      X_WT, new_goal, V_WT.tail<3>(), Eigen::Vector3d::Zero(), 0, 0, start_time,
+      end_time);
   X_WT_traj_ = traj;
 }
 
@@ -344,8 +339,6 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
   diff.tail<3>() = X_WT.linear().transpose() * V_WT_d.tail<3>();
   diff = (diff.array() * get_tool_gain().array()).matrix();
 
-  // const Eigen::VectorXd& ik_v = get_cache().getV();
-
   if (is_F_over_thresh(state.get_ext_wrench())) {
     return MotionStatus::ERR_FORCE_SAFETY;
   }
@@ -354,9 +347,7 @@ MotionStatus MoveToolFollowTraj::ComputeStatus(const RobotState &state) const {
     return MotionStatus::DONE;
   }
 
-  // if (is_stuck() || (state.get_v().norm() < 1e-2 && get_in_state_time(state) > 3 * duration)) {
-  if (state.get_v().norm() < 1e-3 &&
-      get_in_state_time(state) > 2 * duration) {
+  if (state.get_v().norm() < 1e-3 && get_in_state_time(state) > 2 * duration) {
     return MotionStatus::ERR_STUCK;
   }
   if (is_stuck()) {

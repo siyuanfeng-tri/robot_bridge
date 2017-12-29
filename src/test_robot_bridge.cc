@@ -6,26 +6,26 @@ int main() {
   lcm::LCM lcm;
   RigidBodyTree<double> tree;
   drake::parsers::urdf::AddModelInstanceFromUrdfFile(
-      "/home/sfeng/code/rand_obj_picking/models/iiwa_description/urdf/iiwa14_polytope_collision.urdf", drake::multibody::joints::kFixed, nullptr, &tree);
+      "/home/sfeng/code/rand_obj_picking/models/iiwa_description/urdf/"
+      "iiwa14_polytope_collision.urdf",
+      drake::multibody::joints::kFixed, nullptr, &tree);
 
   // Setup camera and gripper frames.
   Eigen::Isometry3d X_7C = Eigen::Isometry3d::Identity();
   // to rgb
-  X_7C.matrix() <<
-        0.3826,    -0.880474,      0.27997,   -0.0491369,
-        0.923914,     0.364806,    -0.115324,   0.00836689,
-        -0.000594751,     0.302791,     0.953057,     0.135499,
-                   0,            0,            0,            1;
+  X_7C.matrix() << 0.3826, -0.880474, 0.27997, -0.0491369, 0.923914, 0.364806,
+      -0.115324, 0.00836689, -0.000594751, 0.302791, 0.953057, 0.135499, 0, 0,
+      0, 1;
 
   RigidBodyFrame<double> camera_frame(
-      "Camera", tree.FindBody(robot_bridge::kEEName), X_7C);
+      "Camera", tree.FindBody("iiwa_link_7"), X_7C);
 
   const Eigen::Isometry3d X_7T =
       Eigen::Translation<double, 3>(Eigen::Vector3d(0, 0, 0.24)) *
       Eigen::AngleAxis<double>(-22. / 180. * M_PI, Eigen::Vector3d::UnitZ()) *
       Eigen::AngleAxis<double>(M_PI, Eigen::Vector3d::UnitY());
   RigidBodyFrame<double> tool_frame("Tool",
-                                    tree.FindBody(robot_bridge::kEEName), X_7T);
+                                    tree.FindBody("iiwa_link_7"), X_7T);
 
   robot_bridge::IiwaController robot_comm(tree, tool_frame, camera_frame);
   robot_comm.Start();

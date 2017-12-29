@@ -12,8 +12,6 @@ typedef Matrix<double, 6, 1> Vector6d;
 
 namespace robot_bridge {
 
-extern const std::string kEEName;
-
 enum class MotionStatus {
   EXECUTING = 0,
   DONE = 1,
@@ -95,13 +93,12 @@ private:
 
 Eigen::Matrix<double, 7, 1> pose_to_vec(const Eigen::Isometry3d &pose);
 
-bool InverseKinTraj(
-    const RigidBodyTree<double> &robot,
-    const RigidBodyFrame<double> &frame,
-    const std::vector<Eigen::Isometry3d>& poses,
-    const std::vector<double>& times,
-    const Eigen::VectorXd& q_guess,
-    std::vector<Eigen::VectorXd>* result_q);
+bool InverseKinTraj(const RigidBodyTree<double> &robot,
+                    const RigidBodyFrame<double> &frame,
+                    const std::vector<Eigen::Isometry3d> &poses,
+                    const std::vector<double> &times,
+                    const Eigen::VectorXd &q_guess,
+                    std::vector<Eigen::VectorXd> *result_q);
 
 // Solves the IK, s.t. FK(ret, frame_T) = X_WT.
 Eigen::VectorXd PointIk(const Eigen::Isometry3d &X_WT,

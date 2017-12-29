@@ -34,17 +34,16 @@ public:
                                 bool blocking) override;
 
   MotionStatus MoveToolAndApplyWrench(const Eigen::Isometry3d &tgt_pose_ee,
-                                      const Eigen::Vector6d& gains_E,
+                                      const Eigen::Vector6d &gains_E,
                                       double duration,
-                                      const Eigen::Vector6d& F_upper,
-                                      const Eigen::Vector6d& F_lower,
-                                      const Eigen::Vector6d& F,
+                                      const Eigen::Vector6d &F_upper,
+                                      const Eigen::Vector6d &F_lower,
+                                      const Eigen::Vector6d &F,
                                       bool blocking) override;
-  MotionStatus MoveStraightUntilTouch(
-      const Eigen::Vector3d &dir_W, double vel,
-      const Eigen::Vector3d& f_upper,
-      const Eigen::Vector3d& f_lower,
-      bool blocking) override;
+  MotionStatus MoveStraightUntilTouch(const Eigen::Vector3d &dir_W, double vel,
+                                      const Eigen::Vector3d &f_upper,
+                                      const Eigen::Vector3d &f_lower,
+                                      bool blocking) override;
   MotionStatus GetRobotMotionStatus() const override;
   Eigen::Isometry3d GetDesiredToolPose() const;
   Eigen::VectorXd GetDesiredJointPositionRadians() const;
@@ -65,7 +64,7 @@ public:
 
   void UpdateToolGoal(const Eigen::Isometry3d &world_frame_update) override;
 
-  void AddCollisionPair(const Capsule& c0, const Capsule& c1) override;
+  void AddCollisionPair(const Capsule &c0, const Capsule &c1) override;
 
 private:
   void MoveJ(const Eigen::VectorXd &q_des, double duration);

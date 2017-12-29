@@ -85,17 +85,17 @@ MotionStatus RobotBridge::WaitForRobotMotionCompletion() const {
   } while (ret == MotionStatus::EXECUTING);
 
   switch (ret) {
-    case MotionStatus::ERR_FORCE_SAFETY:
-      std::cout << "Motion Ended with ERR_FORCE_SAFETY\n";
-      break;
-    case MotionStatus::ERR_STUCK:
-      std::cout << "Motion Ended with ERR_STUCK\n";
-      break;
-    case MotionStatus::DONE:
-      std::cout << "Motion Ended with DONE\n";
-      break;
-    default:
-      break;
+  case MotionStatus::ERR_FORCE_SAFETY:
+    std::cout << "Motion Ended with ERR_FORCE_SAFETY\n";
+    break;
+  case MotionStatus::ERR_STUCK:
+    std::cout << "Motion Ended with ERR_STUCK\n";
+    break;
+  case MotionStatus::DONE:
+    std::cout << "Motion Ended with DONE\n";
+    break;
+  default:
+    break;
   }
   return ret;
 }
