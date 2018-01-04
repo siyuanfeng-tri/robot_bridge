@@ -198,7 +198,7 @@ bool IiwaController::CloseGripper() {
   // mm
   double dist = 0.006;
   // N
-  double force = 70;
+  double force = 90;
 
   SetGripperPositionAndForce(dist, force);
 
