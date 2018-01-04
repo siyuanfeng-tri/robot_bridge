@@ -198,7 +198,7 @@ bool IiwaController::CloseGripper() {
   // mm
   double dist = 0.006;
   // N
-  double force = 70;
+  double force = 90;
 
   SetGripperPositionAndForce(dist, force);
 
@@ -242,7 +242,7 @@ bool IiwaController::OpenGripper() {
 }
 
 bool IiwaController::CheckGrasp() const {
-  double force = 70; // N
+  double force = 90; // N
   GripperState wsg_state;
   for (int i = 0; i < 10; i++) {
     GetGripperState(&wsg_state);
