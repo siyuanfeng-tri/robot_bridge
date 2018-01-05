@@ -15,6 +15,8 @@
 #include "drake/util/lcmUtil.h"
 #include "robot_bridge/util.h"
 
+#include <sched.h>
+
 namespace robot_bridge {
 
 const std::string IiwaController::kLcmIiwaStatusChannel = "IIWA_STATUS";
@@ -375,6 +377,14 @@ void FillFrameMessage(const Eigen::Isometry3d &pose, int idx,
 }
 
 void IiwaController::ControlLoop() {
+  // Ask for the real time scheduler to pump the priority for this thread.
+  struct sched_param sch_param;
+  // Higher priority is better.
+  sch_param.sched_priority = 15;
+  if (sched_setscheduler(0, SCHED_RR, &sch_param) != 0) {
+    throw std::runtime_error("IiwaController can't set realtime priority.");
+  }
+
   const RigidBodyTree<double> &robot = get_robot();
   const RigidBodyFrame<double> &frame_T = get_tool_frame();
   const RigidBodyFrame<double> &frame_C = get_camera_frame();
